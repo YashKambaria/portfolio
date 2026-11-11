@@ -1,0 +1,57 @@
+.layer {
+  --particle-layer-opacity: 0.62;
+  position: fixed;
+  /* The particle system belongs behind page content. Its reserved lanes stay
+     visible, but it can never draw across copy, buttons, cards, or the Atlas. */
+  z-index: 0;
+  inset: 72px 0 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: transparent;
+}
+
+.dark { --particle-layer-opacity: 0.82; }
+
+.poster,
+.canvasHost,
+.canvasHost canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.poster {
+  z-index: 0;
+  opacity: 1;
+  transition: opacity 220ms ease-out;
+}
+
+.canvasHost {
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 280ms ease-out;
+}
+
+.ready .poster { opacity: 0; }
+.ready .canvasHost { opacity: var(--particle-layer-opacity); }
+.contextLost .poster { opacity: 1; }
+.contextLost .canvasHost { opacity: 0; }
+
+@media (max-width: 1023px) {
+  /* At compact widths there is no dedicated right-side reading lane. */
+  .layer { --particle-layer-opacity: 0.52; }
+}
+
+@media (max-width: 700px) {
+  .layer { inset-block-start: 64px; --particle-layer-opacity: 0.46; }
+}
+
+@media (max-width: 480px) {
+  .layer { --particle-layer-opacity: 0.36; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .poster, .canvasHost { transition: none; }
+}

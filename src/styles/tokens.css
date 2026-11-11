@@ -1,0 +1,29 @@
+:root {
+  color-scheme: light;
+  --color-primary: #17232D;
+  --color-secondary: #31504D;
+  --color-accent: #315CCB;
+  --color-accent-warm: #B86136;
+  --color-background: #F4F3EF;
+  --color-surface: #FFFFFF;
+  --color-surface-raised: #ECEAE4;
+  --color-text-primary: #17232D;
+  --color-text-secondary: #52616A;
+  --color-text-muted: #5E6A72;
+  --color-border: #D7D9D5;
+  --color-success: #216747;
+  --color-warning: #80520B;
+  --color-error: #A3312D;
+  --color-information: #244F9B;
+  --font-display: 'Newsreader', Georgia, serif;
+  --font-sans: 'IBM Plex Sans', Arial, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-6: 24px; --space-8: 32px; --space-12: 48px; --space-16: 64px; --space-22: 88px; --space-28: 112px;
+  --space-64: 64px; --space-112: 112px;
+  --content-width: 1200px; --grid-columns: 12; --grid-gutter: 24px;
+  --radius-control: 6px; --radius-card: 6px; --radius-diagram: 10px;
+  --focus-color: #315CCB; --focus-width: 2px; --focus-offset: 3px;
+  --motion-fast: 140ms; --motion-standard: 200ms;
+}
+@media (max-width: 1023px) { :root { --grid-gutter: 20px; --space-112: 64px; } }
+@media (max-width: 639px) { :root { --grid-gutter: 16px; --space-112: 52px; } }

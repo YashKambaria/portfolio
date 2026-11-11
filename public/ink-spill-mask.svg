@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000">
+  <defs>
+    <filter id="ink-edge" x="-8%" y="-8%" width="116%" height="116%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.015" numOctaves="2" seed="13" result="grain" />
+      <feDisplacementMap in="SourceGraphic" in2="grain" scale="34" xChannelSelector="R" yChannelSelector="G" />
+    </filter>
+  </defs>
+  <path filter="url(#ink-edge)" fill="white" d="M501 8c43 6 62 34 95 47 36 14 73 4 106 24 30 18 39 54 69 73 31 20 74 18 99 45 26 28 22 69 43 100 21 32 61 52 73 88 12 37-8 75-2 112 6 38 39 71 35 109-4 38-43 63-55 100-13 37 2 82-18 115-20 33-65 41-91 68-27 27-38 72-71 92-33 19-77 8-114 21-37 13-66 49-104 56-37 7-73-17-111-18-38-1-75 22-112 14-37-8-58-48-93-65-34-17-80-13-109-39-29-26-28-72-50-105-22-33-64-56-73-94-9-37 14-73 12-111-2-38-33-74-25-111 8-37 49-58 65-92 16-35 7-81 32-110 25-29 71-31 102-55 31-24 48-67 85-81 36-14 76 5 114 2 38-3 74-30 112-24z" />
+</svg>

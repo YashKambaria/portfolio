@@ -1,0 +1,3 @@
+import { Link } from 'react-router-dom';
+import { profile } from '../../data/portfolio';
+export default function Footer() { return <footer className="site-footer"><div className="container footer-inner"><span>Yash Kambaria</span><Link to="/projects">Selected work</Link><a href={profile.socials.github} target="_blank" rel="noreferrer">GitHub <span className="sr-only">(opens in a new tab)</span></a><a href={profile.socials.linkedin} target="_blank" rel="noreferrer">LinkedIn <span className="sr-only">(opens in a new tab)</span></a><a href={profile.socials.leetcode} target="_blank" rel="noreferrer">LeetCode <span className="sr-only">(opens in a new tab)</span></a><span>© {new Date().getFullYear()}</span></div></footer>; }

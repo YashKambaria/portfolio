@@ -1,0 +1,51 @@
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+::view-transition-new(root) { animation: ink-reveal 520ms cubic-bezier(.2,.72,.18,1) both; }
+@supports (mask-image: url('/ink-spill-mask.svg')) {
+  ::view-transition-new(root) {
+    mask-image: url('/ink-spill-mask.svg'); mask-repeat: no-repeat; mask-size: 0 0;
+    mask-position: calc(var(--theme-origin-x, 50vw) - 150vmax) calc(var(--theme-origin-y, 50vh) - 150vmax);
+  }
+  @keyframes ink-reveal { to { mask-size: 300vmax 300vmax; } }
+}
+@supports not (mask-image: url('/ink-spill-mask.svg')) {
+  ::view-transition-new(root) { clip-path: circle(0 at var(--theme-origin-x, 50vw) var(--theme-origin-y, 50vh)); }
+  @keyframes ink-reveal { from { clip-path: circle(0 at var(--theme-origin-x, 50vw) var(--theme-origin-y, 50vh)); } to { clip-path: circle(160vmax at var(--theme-origin-x, 50vw) var(--theme-origin-y, 50vh)); } }
+}
+:root.theme-transitioning,
+:root.theme-transitioning *,
+:root.theme-transitioning *::before,
+:root.theme-transitioning *::after {
+  transition-property: color, background-color, border-color, box-shadow, fill, stroke !important;
+  transition-duration: 560ms !important;
+  transition-timing-function: cubic-bezier(.2, .72, .18, 1) !important;
+}
+:root[data-theme-wipe]::after {
+  content: "";
+  position: fixed;
+  z-index: 9999;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: #111820;
+  mix-blend-mode: multiply;
+  mask-image: url('/ink-spill-mask.svg');
+  mask-repeat: no-repeat;
+  mask-size: 0 0;
+  mask-position: calc(var(--theme-origin-x, 50vw) - 150vmax) calc(var(--theme-origin-y, 50vh) - 150vmax);
+  animation: fallback-ink-wash 560ms cubic-bezier(.2, .72, .18, 1) both;
+}
+:root[data-theme-wipe="light"]::after {
+  background: #F4F3EF;
+  mix-blend-mode: screen;
+}
+@keyframes fallback-ink-wash {
+  0% { mask-size: 0 0; opacity: .42; }
+  78% { opacity: .22; }
+  100% { mask-size: 300vmax 300vmax; opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-new(root) { animation: none; clip-path: none; }
+  :root.theme-transitioning, :root.theme-transitioning *, :root.theme-transitioning *::before, :root.theme-transitioning *::after { transition-duration: .01ms !important; }
+  :root[data-theme-wipe]::after { animation: none; display: none; }
+  html, body { transition: background-color 120ms ease, color 120ms ease; }
+}

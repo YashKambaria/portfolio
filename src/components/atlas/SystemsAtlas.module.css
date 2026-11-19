@@ -1,5 +1,6 @@
 .atlas { border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); padding: clamp(20px, 3vw, 32px); }
 @supports (background: color-mix(in srgb, white 80%, transparent)) { .atlas { background: color-mix(in srgb, var(--color-surface) 66%, transparent); } }
+:root[data-theme="dark"] .atlas { background: var(--color-surface); }
 .topline { display: flex; align-items: center; justify-content: space-between; padding-bottom: 18px; border-bottom: 1px solid var(--color-border); }
 .mapIcon { display: inline-flex; align-items: center; gap: 8px; font: 500 11px var(--font-mono); color: var(--color-text-muted); letter-spacing: .04em; }
 .atlasGrid { display: grid; grid-template-columns: minmax(160px, .85fr) 1.4fr; gap: 24px; padding: 24px 0; }

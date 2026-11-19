@@ -1,51 +1,41 @@
-::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
-::view-transition-new(root) { animation: ink-reveal 520ms cubic-bezier(.2,.72,.18,1) both; }
-@supports (mask-image: url('/ink-spill-mask.svg')) {
-  ::view-transition-new(root) {
-    mask-image: url('/ink-spill-mask.svg'); mask-repeat: no-repeat; mask-size: 0 0;
-    mask-position: calc(var(--theme-origin-x, 50vw) - 150vmax) calc(var(--theme-origin-y, 50vh) - 150vmax);
-  }
-  @keyframes ink-reveal { to { mask-size: 300vmax 300vmax; } }
-}
-@supports not (mask-image: url('/ink-spill-mask.svg')) {
-  ::view-transition-new(root) { clip-path: circle(0 at var(--theme-origin-x, 50vw) var(--theme-origin-y, 50vh)); }
-  @keyframes ink-reveal { from { clip-path: circle(0 at var(--theme-origin-x, 50vw) var(--theme-origin-y, 50vh)); } to { clip-path: circle(160vmax at var(--theme-origin-x, 50vw) var(--theme-origin-y, 50vh)); } }
-}
-:root.theme-transitioning,
-:root.theme-transitioning *,
-:root.theme-transitioning *::before,
-:root.theme-transitioning *::after {
-  transition-property: color, background-color, border-color, box-shadow, fill, stroke !important;
-  transition-duration: 560ms !important;
-  transition-timing-function: cubic-bezier(.2, .72, .18, 1) !important;
-}
-:root[data-theme-wipe]::after {
-  content: "";
+.theme-veil {
   position: fixed;
-  z-index: 9999;
+  z-index: 20;
   inset: 0;
+  overflow: hidden;
   pointer-events: none;
-  opacity: 0;
-  background: #111820;
-  mix-blend-mode: multiply;
-  mask-image: url('/ink-spill-mask.svg');
-  mask-repeat: no-repeat;
-  mask-size: 0 0;
-  mask-position: calc(var(--theme-origin-x, 50vw) - 150vmax) calc(var(--theme-origin-y, 50vh) - 150vmax);
-  animation: fallback-ink-wash 560ms cubic-bezier(.2, .72, .18, 1) both;
+  visibility: hidden;
+  --theme-veil-color: #0B1511;
 }
-:root[data-theme-wipe="light"]::after {
-  background: #F4F3EF;
-  mix-blend-mode: screen;
+
+.theme-veil[data-target="light"] { --theme-veil-color: #F4F3EF; }
+.theme-veil[data-phase] { visibility: visible; }
+
+.theme-veil-ink {
+  position: absolute;
+  left: var(--theme-origin-x, 50%);
+  top: var(--theme-origin-y, 50%);
+  width: 320vmax;
+  aspect-ratio: 1;
+  border-radius: 48% 52% 46% 54% / 53% 47% 54% 46%;
+  background: var(--theme-veil-color);
+  mask: url('/ink-spill-mask.svg') center / contain no-repeat;
+  transform: translate(-50%, -50%) scale(0);
 }
-@keyframes fallback-ink-wash {
-  0% { mask-size: 0 0; opacity: .42; }
-  78% { opacity: .22; }
-  100% { mask-size: 300vmax 300vmax; opacity: 0; }
+
+.theme-veil[data-phase="cover"] .theme-veil-ink {
+  animation: theme-cover 240ms cubic-bezier(.55, .08, .28, 1) both;
 }
-@media (prefers-reduced-motion: reduce) {
-  ::view-transition-new(root) { animation: none; clip-path: none; }
-  :root.theme-transitioning, :root.theme-transitioning *, :root.theme-transitioning *::before, :root.theme-transitioning *::after { transition-duration: .01ms !important; }
-  :root[data-theme-wipe]::after { animation: none; display: none; }
-  html, body { transition: background-color 120ms ease, color 120ms ease; }
+
+.theme-veil[data-phase="reveal"] {
+  background: var(--theme-veil-color);
+  animation: theme-reveal 340ms cubic-bezier(.18, .68, .33, 1) both;
+}
+
+@keyframes theme-cover {
+  to { transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes theme-reveal {
+  to { opacity: 0; }
 }

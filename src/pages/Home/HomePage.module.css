@@ -6,9 +6,9 @@
 .position span { padding: 0 5px; color: var(--color-text-muted); }
 .intro { max-width: 64ch; margin: 18px 0 24px; color: var(--color-text-secondary); font-size: 17px; line-height: 1.6; }
 .heroActions { display: flex; gap: 10px; flex-wrap: wrap; }
-.heroActions .button { gap: 5px; }
+.heroActions a { gap: 5px; }
 .educationLine { margin: 20px 0 0; color: var(--color-text-muted); font: 12px var(--font-mono); }
 .atlasWrap { scroll-margin-top: 20px; margin-bottom: 12px; }
 .transitionGap { min-height: clamp(280px, 40vh, 520px); pointer-events: none; }
 @media (max-width: 900px) { .heroCopy { grid-column: 1 / span 8; max-width: 520px; } .hero { min-height: 600px; padding: 56px 0 32px; } }
-@media (max-width: 640px) { .hero { padding: 44px 0 28px; } .heroCopy { grid-column: 1 / -1; max-width: none; } .hero h1 { font-size: clamp(44px, 12vw, 58px); } .heroActions { align-items: stretch; } .heroActions .button:first-child { width: 100%; } .educationLine { line-height: 1.6; } .transitionGap { min-height: 168px; } }
+@media (max-width: 640px) { .hero { padding: 44px 0 28px; } .heroCopy { grid-column: 1 / -1; max-width: none; } .hero h1 { font-size: clamp(44px, 12vw, 58px); } .heroActions { align-items: stretch; } .heroActions a:first-child { width: 100%; } .educationLine { line-height: 1.6; } .transitionGap { min-height: 168px; } }

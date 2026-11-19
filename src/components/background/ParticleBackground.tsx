@@ -1,10 +1,21 @@
-import { Suspense, lazy, useEffect, useState } from 'react';
+import { Component, Suspense, lazy, useEffect, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useTheme } from '../theme/ThemeProvider';
-import ParticlePoster from './ParticlePoster';
+import DarkAtmosphere from './DarkAtmosphere';
 import styles from './ParticleBackground.module.css';
 
 const ParticleCanvas = lazy(() => import('./ParticleCanvas'));
+const ParticlePoster = lazy(() => import('./ParticlePoster'));
+
+class ParticleBoundary extends Component<{ children: ReactNode; onFailure: () => void }, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() { return { failed: true }; }
+
+  componentDidCatch() { this.props.onFailure(); }
+
+  render() { return this.state.failed ? null : this.props.children; }
+}
 
 export default function ParticleBackground() {
   const location = useLocation();
@@ -23,7 +34,10 @@ export default function ParticleBackground() {
   }, []);
 
   useEffect(() => {
-    if (reducedMotion || location.pathname !== '/') setReady(false);
+    if (reducedMotion || location.pathname !== '/') {
+      setReady(false);
+      setContextLost(false);
+    }
   }, [location.pathname, reducedMotion]);
 
   if (location.pathname !== '/') return null;
@@ -37,9 +51,12 @@ export default function ParticleBackground() {
   ].filter(Boolean).join(' ');
 
   return <div className={className} aria-hidden="true">
-    <ParticlePoster dark={theme === 'dark'} />
+    {theme === 'dark' && <DarkAtmosphere reducedMotion={reducedMotion} />}
+    {theme === 'light' && (reducedMotion || contextLost) && <Suspense fallback={null}><ParticlePoster /></Suspense>}
     {!reducedMotion && <Suspense fallback={null}>
-      <ParticleCanvas onReady={() => setReady(true)} onContextLost={setContextLost} />
+      <ParticleBoundary onFailure={() => setContextLost(true)}>
+        <ParticleCanvas onReady={() => setReady(true)} onContextLost={setContextLost} />
+      </ParticleBoundary>
     </Suspense>}
   </div>;
 }

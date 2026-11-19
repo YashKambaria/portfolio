@@ -12,6 +12,8 @@ a:hover { text-decoration-color: var(--color-accent); }
 .button { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 0 18px; border: 1px solid var(--color-primary); border-radius: var(--radius-control); font-size: 14px; font-weight: 600; text-decoration: none; transition: background-color var(--motion-fast) ease, color var(--motion-fast) ease; }
 .button-primary { color: var(--color-on-primary); background: var(--color-primary); }
 .button-primary:hover { color: var(--color-on-primary); background: var(--color-secondary); }
+.button-secondary { color: var(--color-primary); background: transparent; }
+.button-secondary:hover { background: var(--color-surface-raised); }
 .skip-link { position: fixed; z-index: 10; top: 8px; left: 8px; transform: translateY(-150%); padding: 12px; background: var(--color-surface); }
 .skip-link:focus { transform: translateY(0); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
@@ -20,7 +22,7 @@ a:hover { text-decoration-color: var(--color-accent); }
 .footer-inner a { color: var(--color-text-secondary); }
 .page-shell { min-height: 65vh; padding-block: var(--space-112); }
 .page-title { margin: 16px 0 24px; font: 500 clamp(40px, 6vw, 64px)/1.05 var(--font-display); }
-.section-block { padding: var(--space-112) 0; scroll-margin-top: 28px; }
+:where(.section-block) { padding: var(--space-112) 0; scroll-margin-top: 28px; }
 .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
 .section-heading h2 { max-width: 720px; margin: 12px 0 0; font: 500 clamp(32px, 4.5vw, 48px)/1.08 var(--font-display); letter-spacing: -.025em; }
 .section-link { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-size: 14px; text-underline-offset: 4px; white-space: nowrap; }
@@ -28,11 +30,14 @@ a:hover { text-decoration-color: var(--color-accent); }
 .page-eyebrow { display: block; margin-top: 48px; }
 .architecture-shell { margin-top: 48px; padding-top: 28px; border-top: 1px solid var(--color-border); scroll-margin-top: 24px; }
 .architecture-shell h2 { margin: 12px 0; font: 500 30px/1.1 var(--font-display); }
+.architecture-concepts { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-4) 0 0; padding: 0; list-style: none; }
+.architecture-concepts li { padding: var(--space-2) var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-control); color: var(--color-text-secondary); font-size: 14px; }
 .route-list { list-style: none; padding: 0; margin: 36px 0; border-top: 1px solid var(--color-border); }
 .route-list li { border-bottom: 1px solid var(--color-border); }
-.route-list a { padding: 20px 0; display: flex; justify-content: space-between; gap: 20px; text-decoration: none; }
-.route-list span { color: var(--color-text-muted); font-size: 14px; }
-@media (max-width: 640px) { .container { width: min(calc(100% - 32px), var(--content-width)); } .footer-inner { flex-wrap: wrap; } .route-list a { flex-direction: column; gap: 4px; } }
+.route-list a { padding: 20px 0; display: grid; grid-template-columns: minmax(12rem, 1fr) minmax(0, 2fr); align-items: baseline; gap: 20px; text-decoration: none; }
+.route-list a:hover .route-title { text-decoration: underline; text-decoration-color: var(--color-accent); text-underline-offset: 4px; }
+.route-concepts { color: var(--color-text-muted); font-size: 14px; }
+@media (max-width: 640px) { .container { width: min(calc(100% - 32px), var(--content-width)); } .footer-inner { flex-wrap: wrap; } .route-list a { grid-template-columns: 1fr; gap: 8px; } }
 @media (max-width: 640px) { .section-heading { align-items: flex-start; flex-direction: column; gap: 12px; } }
 @media (min-width: 1024px) {
   /* Particle Engineering alternates its reserved visual lane. Copy keeps the

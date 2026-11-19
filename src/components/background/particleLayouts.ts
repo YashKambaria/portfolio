@@ -3,6 +3,10 @@ import { DataTexture, FloatType, NearestFilter, RGBAFormat } from 'three';
 export const PARTICLE_LAYOUTS = ['laptop', 'cpu', 'fan', 'java', 'dsa'] as const;
 export const LAYOUT_COUNT = PARTICLE_LAYOUTS.length;
 export const LAYOUT_TILE_WIDTH = 512;
+export const FAN_ROTOR_START = 0.4;
+export const FAN_ROTOR_END = 0.88;
+export const FAN_YAW = -0.18;
+export const FAN_PITCH = 0.07;
 
 type LayoutName = (typeof PARTICLE_LAYOUTS)[number];
 type Point = [number, number, number];
@@ -139,11 +143,11 @@ function fanPoint(index: number, count: number, random: () => number): Point {
     const radius = 1.38 + random() * 0.24;
     const angle = random() * TAU;
     point = [Math.cos(angle) * radius, Math.sin(angle) * radius, gaussian(random) * 0.07];
-  } else if (band < 0.4) {
+  } else if (band < FAN_ROTOR_START) {
     const radius = 1.13 + random() * 0.11;
     const angle = random() * TAU;
     point = [Math.cos(angle) * radius, Math.sin(angle) * radius, 0.05 + gaussian(random) * 0.035];
-  } else if (band < 0.88) {
+  } else if (band < FAN_ROTOR_END) {
     const blades = 7;
     const blade = Math.floor(random() * blades);
     const outward = Math.sqrt(random());
@@ -166,7 +170,8 @@ function fanPoint(index: number, count: number, random: () => number): Point {
     point = [x, y, 0.12 + gaussian(random) * 0.04];
   }
 
-  return orient(point, -0.18, 0.07);
+  // Tilt is applied by the shader after spinning the blades in this plane.
+  return point;
 }
 
 function getTextPixels(text: string) {
@@ -234,6 +239,10 @@ function makeLayout(name: LayoutName, count: number) {
 
 export function createParticleLayouts(count: number) {
   return PARTICLE_LAYOUTS.map((name) => makeLayout(name, count));
+}
+
+export function createLaptopLayout(count: number) {
+  return makeLayout('laptop', count);
 }
 
 export function createSeedAttributes(count: number) {

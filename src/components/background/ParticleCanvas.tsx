@@ -1,9 +1,10 @@
 import { Canvas, useFrame, useThree, type RootState } from '@react-three/fiber';
-import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import * as THREE from 'three';
 import { useTheme } from '../theme/ThemeProvider';
-import ArmoredHero from './ArmoredHero';
-import { createLayoutTexture, createParticleLayouts, createSeedAttributes } from './particleLayouts';
+import DarkFigureCloud from './DarkFigureCloud';
+import { createLayoutTexture, createParticleLayouts, createSeedAttributes, FAN_PITCH, FAN_ROTOR_END, FAN_ROTOR_START, FAN_YAW } from './particleLayouts';
+import { particleMotion } from './particleMotion';
 import styles from './ParticleBackground.module.css';
 
 const POINT_VERTEX = /* glsl */ `
@@ -13,10 +14,10 @@ uniform float uRowsPerLayout;
 uniform float uTileWidth;
 uniform float uTextureHeight;
 uniform float uMorph;
-uniform float uTheme;
 uniform float uTime;
 uniform float uMotion;
-uniform float uSpinAngle;
+uniform float uFanAngle;
+uniform float uCount;
 uniform float uPointSize;
 uniform float uScale;
 uniform float uOffsetX;
@@ -26,9 +27,10 @@ attribute float aIndex;
 attribute float aSeed;
 attribute float aTone;
 varying float vTone;
-varying float vSeed;
 varying float vAlpha;
 varying float vDepth;
+
+${particleMotion}
 
 vec3 readLayout(float layoutIndex) {
   float column = mod(aIndex, uTileWidth);
@@ -51,6 +53,21 @@ vec3 rotateZ(vec3 point, float angle) {
   return point;
 }
 
+vec3 poseLayout(float layoutIndex) {
+  vec3 point = readLayout(layoutIndex);
+  if (layoutIndex == 0.0) {
+    return rotateY(point, sin(uTime * .45) * .25 * uMotion);
+  }
+  if (layoutIndex == 2.0) {
+    float band = aIndex / uCount;
+    if (band >= ${FAN_ROTOR_START} && band < ${FAN_ROTOR_END}) point = rotateZ(point, uFanAngle * uMotion);
+    point = rotateY(point, ${FAN_YAW});
+    float pitch = ${FAN_PITCH};
+    point.yz = mat2(cos(pitch), sin(pitch), -sin(pitch), cos(pitch)) * point.yz;
+  }
+  return point;
+}
+
 float formationScale(float formation) {
   if (formation < 0.5) return 0.76; // laptop
   if (formation < 1.5) return 0.64; // CPU has pins and needs extra breathing room
@@ -66,8 +83,6 @@ float smootherstep(float value) {
 }
 
 vec3 transformPoint(vec3 point, float seed) {
-  float hero = 1.0 - smoothstep(0.08, 0.82, uMorph);
-  float fan = exp(-pow((uMorph - 2.0) / 0.34, 2.0));
   float stage = floor(clamp(uMorph, 0.0, 4.0));
   float phase = fract(uMorph);
   // The first part of a transition opens the object. Translation begins after
@@ -79,11 +94,6 @@ vec3 transformPoint(vec3 point, float seed) {
   float side = mix(fromSide, -fromSide, travel);
   float nextStage = min(4.0, stage + 1.0);
   float formScale = mix(formationScale(stage), formationScale(nextStage), smootherstep(phase));
-  // The whole formation subtly turns with the reader's scroll momentum. The
-  // fan uses the full signed angle, so down-scroll is clockwise on screen and
-  // up-scroll reverses it rather than restarting a looping animation.
-  point = rotateY(point, (uTime * 0.11 * hero + uSpinAngle * 0.12) * uMotion);
-  point = rotateZ(point, uSpinAngle * fan * uMotion);
 
   float transition = sin(phase * 3.14159265);
   vec3 microMotion = vec3(
@@ -98,8 +108,8 @@ vec3 transformPoint(vec3 point, float seed) {
   float flowDirection = -fromSide;
   float wispWave = sin(seed * 91.0 + uTime * 0.8);
   point += microMotion * (0.24 * transition * uMotion);
-  point.x += wisp * (flowDirection * 0.56 * transition + wispWave * 0.10) * uMotion;
-  point.y += wisp * cos(seed * 67.0 + uTime * 0.62) * (0.14 * transition + 0.035) * uMotion;
+  point.x += wisp * (flowDirection * 0.56 + wispWave * 0.10) * transition * uMotion;
+  point.y += wisp * cos(seed * 67.0 + uTime * 0.62) * 0.175 * transition * uMotion;
   point *= uScale * formScale;
   point.x += uOffsetX * side;
   point.y += uOffsetY;
@@ -111,13 +121,17 @@ void main() {
   float fromLayout = floor(progress);
   float toLayout = min(4.0, fromLayout + 1.0);
   float morphAmount = smootherstep(fract(progress));
-  vec3 point = mix(readLayout(fromLayout), readLayout(toLayout), morphAmount);
+  vec3 point = mix(poseLayout(fromLayout), poseLayout(toLayout), morphAmount);
+  vec4 motion = particleMotion(point.xy, aSeed, uTime) * uMotion;
+  // Keep the lettering's narrow strokes a little tighter than the hardware.
+  float lettering = smoothstep(2.0, 3.0, progress);
+  point += motion.xyz * vec3(.039, .036, .072) * mix(1.0, .72, lettering);
   point = transformPoint(point, aSeed);
 
   vec4 viewPosition = modelViewMatrix * vec4(point, 1.0);
   vec4 clipPosition = projectionMatrix * viewPosition;
   gl_Position = clipPosition;
-  gl_PointSize = uPointSize * (0.72 + aSeed * 0.78) * (8.0 / max(4.0, -viewPosition.z));
+  gl_PointSize = uPointSize * (0.72 + aSeed * 0.78) * (8.0 / max(4.0, -viewPosition.z)) * (1.0 + motion.w * .11);
 
   float screenX = clipPosition.x / clipPosition.w;
   float hero = 1.0 - smoothstep(0.08, 0.82, progress);
@@ -126,17 +140,14 @@ void main() {
   float clearance = mix(heroClearance, mobileClearance, step(uViewportWidth, 3.6));
   float transition = sin(fract(progress) * 3.14159265);
   vTone = aTone;
-  vSeed = aSeed;
   vDepth = clamp(1.15 - (-viewPosition.z / 22.0), 0.44, 1.0);
-  vAlpha = mix(0.88, mix(0.12, 0.9, clearance), hero) * (1.0 - transition * 0.18);
+  vAlpha = mix(0.88, mix(0.12, 0.9, clearance), hero) * (1.0 - transition * 0.18) * (1.0 + motion.w * .19);
 }
 `;
 
 const POINT_FRAGMENT = /* glsl */ `
 precision highp float;
-uniform float uTheme;
 varying float vTone;
-varying float vSeed;
 varying float vAlpha;
 varying float vDepth;
 
@@ -146,96 +157,48 @@ void main() {
   float core = 1.0 - smoothstep(0.5, 1.0, radius);
   float accent = smoothstep(0.94, 0.995, vTone);
   vec3 lightInk = mix(vec3(0.075, 0.105, 0.13), vec3(0.12, 0.28, 0.62), accent);
-  vec3 darkInk = mix(vec3(0.74, 0.78, 0.8), vec3(0.77, 0.52, 0.34), accent);
-  vec3 color = mix(lightInk, darkInk, uTheme);
-  float halo = exp(-radius * 4.6) * uTheme * (0.04 + accent * 0.08);
-  color += vec3(0.38, 0.47, 0.52) * halo;
-  float alpha = core * mix(0.52, 0.68, uTheme) * vDepth * vAlpha;
+  float alpha = core * 0.52 * vDepth * vAlpha;
   if (alpha < 0.012) discard;
-  gl_FragColor = vec4(color, alpha);
+  gl_FragColor = vec4(lightInk, alpha);
 }
 `;
 
-function useScrollMorph(lightProgress: MutableRefObject<number>, darkProgress: MutableRefObject<number>, scrollVelocity: MutableRefObject<number>, reducedMotion: boolean) {
-  useEffect(() => {
+function useScrollMorph(morph: MutableRefObject<number>, fanAngle: MutableRefObject<number>) {
+  useLayoutEffect(() => {
+    const gaps = [...document.querySelectorAll<HTMLElement>('[data-particle-transition]')];
+    const projects = document.getElementById('work');
+    if (!projects || gaps.length === 0) return;
+
     let frame = 0;
-    let lastScrollY = window.scrollY;
-    let lastTime = performance.now();
     const update = () => {
       frame = 0;
-      if (reducedMotion) return;
-      const now = performance.now();
-      const elapsed = Math.max(16, now - lastTime);
-      scrollVelocity.current = THREE.MathUtils.clamp((window.scrollY - lastScrollY) / elapsed, -2.4, 2.4);
-      lastScrollY = window.scrollY;
-      lastTime = now;
-      const scenes = Object.fromEntries(
-        [...document.querySelectorAll<HTMLElement>('[data-scene]')].map((element) => {
-          const top = element.getBoundingClientRect().top + window.scrollY;
-          return [element.dataset.scene ?? '', { top, bottom: top + element.offsetHeight }];
-        }),
-      );
-      const transitions = Object.fromEntries(
-        [...document.querySelectorAll<HTMLElement>('[data-particle-transition]')].map((element) => {
-          const top = element.getBoundingClientRect().top + window.scrollY;
-          return [element.dataset.particleTransition ?? '', { top, bottom: top + element.offsetHeight }];
-        }),
-      );
-      const hero = scenes.hero;
-      const atlas = scenes.atlas;
-      const projects = scenes.projects;
-      const capabilities = scenes.capabilities;
-      const practice = scenes.practice;
-      const about = scenes.about;
-      const heroAtlas = transitions['hero-atlas'];
-      const atlasProjects = transitions['atlas-projects'];
-      const projectsCapabilities = transitions['projects-capabilities'];
-      const capabilitiesPractice = transitions['capabilities-practice'];
-      if (!hero || !atlas || !projects || !capabilities || !practice || !about || !heroAtlas || !atlasProjects || !projectsCapabilities || !capabilitiesPractice) return;
-      const readingLine = window.scrollY + window.innerHeight * 0.46;
-      const between = (start: number, end: number, from: number, to: number) =>
-        THREE.MathUtils.lerp(from, to, THREE.MathUtils.smoothstep(readingLine, start, Math.max(start + 1, end)));
-
-      // Forms hold for their owning section. Morphs happen only in the
-      // deliberately empty transition gaps, so no incomplete object enters a
-      // content section and reverse scrolling follows exactly the same path.
-      if (readingLine < hero.bottom) lightProgress.current = 0;
-      else if (readingLine < heroAtlas.bottom) lightProgress.current = between(heroAtlas.top, heroAtlas.bottom, 0, 1);
-      else if (readingLine < atlas.bottom) lightProgress.current = 1;
-      else if (readingLine < atlasProjects.bottom) lightProgress.current = between(atlasProjects.top, atlasProjects.bottom, 1, 2);
-      else if (readingLine < projects.bottom) lightProgress.current = 2;
-      else if (readingLine < projectsCapabilities.bottom) lightProgress.current = between(projectsCapabilities.top, projectsCapabilities.bottom, 2, 3);
-      else if (readingLine < capabilities.bottom) lightProgress.current = 3;
-      else if (readingLine < capabilitiesPractice.bottom) lightProgress.current = between(capabilitiesPractice.top, capabilitiesPractice.bottom, 3, 4);
-      else lightProgress.current = 4;
-
-      // The cinematic world shares scroll measurement with the engineering
-      // world but maps it onto its own six-beat choreography.
-      if (readingLine < hero.bottom) darkProgress.current = 0;
-      else if (readingLine < heroAtlas.bottom) darkProgress.current = between(heroAtlas.top, heroAtlas.bottom, 0, 1);
-      else if (readingLine < atlas.bottom) darkProgress.current = 1;
-      else if (readingLine < atlasProjects.bottom) darkProgress.current = between(atlasProjects.top, atlasProjects.bottom, 1, 2);
-      else if (readingLine < projects.bottom) darkProgress.current = 2;
-      else if (readingLine < projectsCapabilities.bottom) darkProgress.current = between(projectsCapabilities.top, projectsCapabilities.bottom, 2, 3);
-      else if (readingLine < capabilities.bottom) darkProgress.current = 3;
-      else if (readingLine < capabilitiesPractice.bottom) darkProgress.current = between(capabilitiesPractice.top, capabilitiesPractice.bottom, 3, 4);
-      else if (readingLine < practice.bottom) darkProgress.current = 4;
-      else if (readingLine < about.bottom) darkProgress.current = between(practice.bottom, about.bottom, 4, 5);
-      else darkProgress.current = 5;
+      const readingLine = window.innerHeight * 0.46;
+      // Each gap contributes one completed morph, or part of one while the
+      // reading line travels through it. This also handles restored scroll.
+      morph.current = gaps.reduce((value, gap) => {
+        const bounds = gap.getBoundingClientRect();
+        return value + THREE.MathUtils.smoothstep(readingLine, bounds.top, bounds.bottom);
+      }, 0);
+      const bounds = projects.getBoundingClientRect();
+      const progress = THREE.MathUtils.clamp((readingLine - bounds.top) / Math.max(1, bounds.height), 0, 1);
+      fanAngle.current = progress * Math.PI * 3;
     };
 
     const schedule = () => {
       if (!frame) frame = window.requestAnimationFrame(update);
     };
+    const observer = new ResizeObserver(schedule);
+    if (projects.parentElement) observer.observe(projects.parentElement);
     window.addEventListener('scroll', schedule, { passive: true });
-    window.addEventListener('resize', schedule, { passive: true });
-    schedule();
+    window.addEventListener('resize', schedule);
+    update();
     return () => {
+      observer.disconnect();
       window.removeEventListener('scroll', schedule);
       window.removeEventListener('resize', schedule);
-      if (frame) window.cancelAnimationFrame(frame);
+      window.cancelAnimationFrame(frame);
     };
-  }, [darkProgress, lightProgress, reducedMotion, scrollVelocity]);
+  }, [fanAngle, morph]);
 }
 
 function makePointGeometry(count: number) {
@@ -249,11 +212,10 @@ function makePointGeometry(count: number) {
   return geometry;
 }
 
-function ParticleField({ count, reducedMotion, morph, scrollVelocity }: { count: number; reducedMotion: boolean; morph: MutableRefObject<number>; scrollVelocity: MutableRefObject<number> }) {
+function ParticleField({ count, reducedMotion, morph, fanAngle }: { count: number; reducedMotion: boolean; morph: MutableRefObject<number>; fanAngle: MutableRefObject<number> }) {
   const { theme } = useTheme();
   const uniformsRef = useRef<THREE.ShaderMaterial['uniforms'] | null>(null);
-  const themeTarget = theme === 'dark' ? 1 : 0;
-  const { size, viewport, invalidate } = useThree();
+  const { size, viewport } = useThree();
   const textureLeases = useRef(new WeakMap<THREE.Texture, number>());
 
   const layouts = useMemo(() => createParticleLayouts(count), [count]);
@@ -264,20 +226,17 @@ function ParticleField({ count, reducedMotion, morph, scrollVelocity }: { count:
     uRowsPerLayout: { value: textureData.rowsPerLayout },
     uTileWidth: { value: 512 },
     uTextureHeight: { value: textureData.height },
-    uMorph: { value: 0 },
-    // Keep this uniforms object stable across theme changes. Recreating it
-    // resets the shader material and briefly sends the formation back to its
-    // initial state before the next animation frame catches up.
-    uTheme: { value: themeTarget },
+    uMorph: { value: morph.current },
     uTime: { value: 0 },
     uMotion: { value: reducedMotion ? 0 : 1 },
-    uSpinAngle: { value: 0 },
+    uFanAngle: { value: fanAngle.current },
+    uCount: { value: count },
     uPointSize: { value: 2.4 },
     uScale: { value: 1 },
     uOffsetX: { value: 0 },
     uOffsetY: { value: 0 },
-    uViewportWidth: { value: viewport.width },
-  }), [reducedMotion, textureData, viewport.width]);
+    uViewportWidth: { value: 0 },
+  }), [count, fanAngle, morph, reducedMotion, textureData]);
 
   uniformsRef.current = uniforms;
 
@@ -302,37 +261,15 @@ function ParticleField({ count, reducedMotion, morph, scrollVelocity }: { count:
     };
   }, [textureData]);
 
-  useEffect(() => {
-    if (reducedMotion && uniformsRef.current) {
-      uniformsRef.current.uTheme.value = themeTarget;
-      uniformsRef.current.uMorph.value = 0;
-      invalidate();
-    }
-  }, [invalidate, reducedMotion, themeTarget]);
-
   useFrame((state, delta) => {
-    if (!uniformsRef.current) return;
+    if (!uniformsRef.current || reducedMotion || theme !== 'light') return;
     const values = uniformsRef.current;
-    values.uTheme.value = THREE.MathUtils.lerp(values.uTheme.value, themeTarget, 1 - Math.exp(-delta * 4.2));
-    values.uMotion.value = reducedMotion ? 0 : 1;
-    if (reducedMotion) return;
-
     values.uTime.value += Math.min(delta, 0.05);
-    const signedVelocity = scrollVelocity.current;
-    const speed = Math.min(Math.abs(signedVelocity) / 1.2, 1);
-    values.uSpinAngle.value += Math.sign(signedVelocity) * (0.75 + speed * 7.25) * delta;
-    // Carry a little momentum between wheel events, then let the formation
-    // settle naturally when the reader stops.
-    scrollVelocity.current *= Math.exp(-delta * 7);
-    // Scroll is the timeline for the formations. Damping this value caused a
-    // fast wheel/trackpad scroll to leave a half-morphed field visible after
-    // the reader had already entered the next section. Keeping it in lockstep
-    // with the measured scroll progress confines every morph to its spacer and
-    // makes upward scrolling retrace the same transition without a lag.
+    values.uFanAngle.value = fanAngle.current;
     values.uMorph.value = morph.current;
     const compact = size.width < 720;
     const baseScale = compact ? 0.45 : size.width < 900 ? 0.76 : Math.min(1.3, viewport.height / 4.45);
-    values.uScale.value = baseScale * (1 - values.uTheme.value * 0.08);
+    values.uScale.value = baseScale;
     const horizontalOffset = compact ? 0.26 : size.width < 900 ? 0.28 : 0.29;
     values.uOffsetX.value = viewport.width * horizontalOffset;
     values.uOffsetY.value = viewport.height * (compact ? 0.055 : 0.025);
@@ -346,14 +283,11 @@ function ParticleField({ count, reducedMotion, morph, scrollVelocity }: { count:
 function ParticleScene({ count, reducedMotion }: { count: number; reducedMotion: boolean }) {
   const { theme } = useTheme();
   const lightProgress = useRef(0);
-  const darkProgress = useRef(0);
-  const scrollVelocity = useRef(0);
-  useScrollMorph(lightProgress, darkProgress, scrollVelocity, reducedMotion);
-  // Both timelines remain allocated in the one WebGL canvas. Switching theme
-  // therefore changes visibility rather than loading/recreating a scene.
+  const fanAngle = useRef(0);
+  useScrollMorph(lightProgress, fanAngle);
   return <>
-    <group visible={theme === 'light'}><ParticleField count={count} reducedMotion={reducedMotion} morph={lightProgress} scrollVelocity={scrollVelocity} /></group>
-    <group visible={theme === 'dark'}><ArmoredHero progress={darkProgress} reducedMotion={reducedMotion} active={theme === 'dark'} /></group>
+    <group visible={theme === 'light'}><ParticleField count={count} reducedMotion={reducedMotion} morph={lightProgress} fanAngle={fanAngle} /></group>
+    {theme === 'dark' && <DarkFigureCloud count={count} />}
   </>;
 }
 

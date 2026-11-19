@@ -1,25 +1,48 @@
 :root[data-theme="light"] { color-scheme: light; --color-on-primary: #FFFFFF; }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --color-primary: #F0EEE7;
-  --color-secondary: #C8CECA;
-  --color-accent: #A0B5F7;
-  --color-accent-warm: #D18458;
-  --color-background: #111820;
-  --color-surface: #202B35;
-  --color-surface-raised: #28343E;
-  --color-text-primary: #F0EEE7;
-  --color-text-secondary: #C8CECA;
-  --color-text-muted: #A7B0B4;
-  --color-border: #43505A;
-  --color-success: #7BC99B;
+  --color-primary: #E4EAE3;
+  --color-secondary: #BACBC0;
+  --color-accent: #9BD9AD;
+  --color-accent-warm: #C9AC75;
+  --color-background: #0B1511;
+  --color-surface: #14231C;
+  --color-surface-raised: #1F3027;
+  --color-text-primary: #E4EAE3;
+  --color-text-secondary: #C1CEC4;
+  --color-text-muted: #A0B3A7;
+  --color-border: #536C5D;
+  --color-success: #87D9AA;
   --color-warning: #E4B96F;
   --color-error: #F08A83;
-  --color-information: #A0B5F7;
-  --color-on-primary: #111820;
-  --focus-color: #A0B5F7;
-  --particle-primary: #F0EEE7;
-  --particle-accent: #A0B5F7;
-  --particle-warm: #D18458;
+  --color-information: #B0CBD0;
+  --color-on-primary: #0B1511;
+  --focus-color: #9BD9AD;
+  --particle-primary: #E4EAE3;
+  --particle-accent: #9BD9AD;
+  --particle-warm: #C9AC75;
+  --dark-backdrop:
+    radial-gradient(ellipse 68% 76% at 9% 0%, rgb(44 80 65 / .30), transparent 77%),
+    radial-gradient(ellipse 70% 58% at 4% 100%, rgb(78 55 35 / .19), transparent 83%),
+    radial-gradient(ellipse 58% 110% at 100% 90%, rgb(32 63 47 / .32), transparent 85%),
+    linear-gradient(90deg, transparent, var(--color-background) 27% 72%, transparent),
+    repeating-linear-gradient(90deg, rgb(156 199 173 / .075) 0 1px, transparent 1px 64px),
+    repeating-linear-gradient(0deg, rgb(156 199 173 / .055) 0 1px, transparent 1px 64px);
 }
 :root[data-theme="light"] { --particle-primary: #17232D; --particle-accent: #315CCB; --particle-warm: #B86136; }
+
+:root[data-theme="dark"] .site-frame,
+:root[data-theme="dark"] #work,
+:root[data-theme="dark"] #skills {
+  background-color: var(--color-background);
+  background-image: var(--dark-backdrop);
+  /* Align the opaque reading areas with the backdrop around the figures. */
+  background-attachment: fixed;
+}
+
+@media (min-width: 1024px) {
+  :root[data-theme="dark"] .container > section[data-scene="capabilities"] {
+    margin-left: 0;
+    margin-right: auto;
+  }
+}

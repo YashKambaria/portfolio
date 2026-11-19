@@ -10,29 +10,29 @@
 .projectRefs span { display: block; color: var(--color-text-muted); font-size: 11px; margin-top: 2px; }
 .tools { display: flex; flex-wrap: wrap; gap: 24px 40px; align-items: baseline; padding-top: 20px; }
 .tools div { display: grid; gap: 6px; }
-.competition { display: grid; grid-template-columns: 1fr 1.1fr; gap: 48px; align-items: center; padding: 40px; border: 1px solid var(--color-border); background: var(--color-surface); border-radius: var(--radius-card); }
+.competition { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: clamp(24px, 3vw, 48px); align-items: center; padding: clamp(20px, 3vw, 40px); border: 1px solid var(--color-border); background: var(--color-surface); border-radius: var(--radius-card); }
 .competition h2, .about h2, .contact h2 { margin: 14px 0 12px; font: 500 clamp(30px, 4vw, 44px)/1.08 var(--font-display); letter-spacing: -.02em; }
 .competition p, .about p, .contact p { color: var(--color-text-secondary); line-height: 1.65; }
-.competition .button { gap: 8px; margin-top: 14px; }
-.button-secondary { color: var(--color-primary); background: transparent; }
-.button-secondary:hover { background: var(--color-surface-raised); }
-.statGrid { display: grid; grid-template-columns: 1fr 1fr; }
-.statGrid div { min-height: 108px; padding: 18px; border-left: 1px solid var(--color-border); border-top: 1px solid var(--color-border); }
+.competition a { gap: 8px; margin-top: 14px; }
+.statGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.statGrid div { min-height: 108px; padding: clamp(10px, 1.4vw, 18px); overflow-wrap: anywhere; }
+.statGrid div:nth-child(even) { border-inline-start: 1px solid var(--color-border); }
+.statGrid div:nth-child(n+3) { border-block-start: 1px solid var(--color-border); }
 .statGrid strong, .statGrid span { display: block; }
 .statGrid strong { font: 500 clamp(23px, 3vw, 34px)/1.1 var(--font-display); }
 .statGrid span { margin-top: 8px; color: var(--color-text-muted); font-size: 12px; }
 .about { display: grid; grid-template-columns: 1.4fr .8fr; gap: 64px; align-items: center; }
 .about > div > p { max-width: 62ch; }
 .education { padding: 24px; border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); }
-.education > svg { color: var(--color-accent); margin-bottom: 12px; }
+.education > svg { display: block; color: var(--color-accent); margin-bottom: 12px; }
 .education h3 { margin: 12px 0 6px; font: 500 26px var(--font-display); }
 .education p { margin: 4px 0; font-size: 14px; }
 .education strong { display: inline-block; margin-top: 12px; font: 500 12px var(--font-mono); }
-.achievementGrid { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); }
+.achievementGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); }
 .achievement { min-height: 220px; padding: 22px; border-right: 1px solid var(--color-border); }
 .achievement:last-child { border-right: 0; }
 .achievementIcon { display: block; margin-bottom: 16px; color: var(--color-accent); }
-.achievement h3 { margin: 11px 0 6px; font: 500 21px/1.2 var(--font-display); }
+.achievement h3 { margin: 11px 0 6px; font: 500 21px/1.2 var(--font-display); overflow-wrap: anywhere; }
 .achievement p { margin: 0; font-size: 14px; }
 .achievement small { display: block; margin-top: 9px; color: var(--color-text-muted); font-size: 12px; line-height: 1.45; }
 .evidenceNote { color: var(--color-text-muted); font-size: 12px; margin-top: 14px; }

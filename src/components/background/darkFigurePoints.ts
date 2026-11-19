@@ -2,8 +2,22 @@ import { buildDoctorDoomCanvas, buildExoSuitCanvas } from './darkFigureDrawings'
 
 export type DarkFigure = 'iron-man' | 'doom' | 'doom-seated';
 type Sample = { x: number; y: number; light: number; edge: number; anchor: number; face: number; weight: number; paint?: [number, number, number, number] };
+export type FigureFrame = {
+  centerX: number;
+  centerY: number;
+  height: number;
+  silhouette?: { width: number; height: number; pixels: Uint8Array };
+};
 
-const fields = new Map<DarkFigure, { width: number; samples: Sample[]; throne: Sample[]; regions: Sample[][] }>();
+export function touchesSilhouette(frame: FigureFrame | undefined, x: number, y: number) {
+  const mask = frame?.silhouette;
+  const column = Math.round(x);
+  const row = Math.round(y);
+  return !!mask && column >= 0 && column < mask.width && row >= 0 && row < mask.height
+    && mask.pixels[row * mask.width + column] === 1;
+}
+
+const fields = new Map<DarkFigure, { width: number; samples: Sample[]; throne: Sample[]; regions: Sample[][]; frame?: FigureFrame }>();
 
 const references = new Map<string, Promise<HTMLImageElement | null>>();
 
@@ -110,16 +124,18 @@ function readFigure(figure: DarkFigure, reference: HTMLImageElement | null) {
   const throne: Sample[] = [];
   const regions: Sample[][] = [[], [], []];
   const regionWeights = [0, 0, 0];
-  if (!pixels || !context) return { width: 0, samples, throne, regions };
+  if (!pixels || !context) return { width: 0, samples, throne, regions, frame: undefined };
   const seatedBody = seated ? new Path2D('M129 255 Q146 238 154 222 Q171 193 189 204 Q211 203 224 243 L240 251 L264 278 L283 302 L277 336 L256 351 L268 383 L263 425 L258 461 L258 505 L273 537 L278 559 L225 563 L205 547 L171 545 L115 542 L105 555 L62 564 L54 550 L66 529 L76 494 L78 448 L71 400 L80 367 L77 351 L60 353 L51 362 L22 356 L25 336 L50 321 L82 306 L99 277 Z') : null;
 
   const luminance = new Float32Array(width * height);
+  const mask = !seated && fromPhoto ? new Uint8Array(width * height) : undefined;
   let minX = width, minY = height, maxX = 0, maxY = 0;
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const index = y * width + x;
       const offset = index * 4;
       if (pixels[offset + 3] < 96) continue;
+      if (mask) mask[index] = 1;
       luminance[index] = (pixels[offset] * .299 + pixels[offset + 1] * .587 + pixels[offset + 2] * .114) / 255;
       minX = Math.min(minX, x);
       maxX = Math.max(maxX, x);
@@ -183,13 +199,19 @@ function readFigure(figure: DarkFigure, reference: HTMLImageElement | null) {
     }
   }
 
-  const field = { width: (maxX - minX) / figureHeight, samples, throne, regions };
+  const frame: FigureFrame | undefined = fromPhoto ? {
+    centerX: (minX + maxX) / 2,
+    centerY: (minY + maxY) / 2,
+    height: figureHeight,
+    silhouette: mask && { width, height, pixels: mask },
+  } : undefined;
+  const field = { width: (maxX - minX) / figureHeight, samples, throne, regions, frame };
   fields.set(figure, field);
   return field;
 }
 
 export function sampleDarkFigure(figure: DarkFigure, count: number, reference: HTMLImageElement | null = null) {
-  const { samples, width, throne, regions } = readFigure(figure, reference);
+  const { samples, width, throne, regions, frame } = readFigure(figure, reference);
   const positions = new Float32Array(count * 3);
   const details = new Float32Array(count * 3);
   const paint = new Float32Array(count * 4);
@@ -233,5 +255,5 @@ export function sampleDarkFigure(figure: DarkFigure, count: number, reference: H
     writeRange(samples, 0, split);
   }
   writeRange(throne.length ? throne : samples, split, count);
-  return { positions, details, paint, width };
+  return { positions, details, paint, width, frame };
 }

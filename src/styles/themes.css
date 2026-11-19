@@ -40,9 +40,45 @@
   background-attachment: fixed;
 }
 
+:root[data-theme="dark"] .site-frame[data-doom-debris] :is(#work, #skills) {
+  background-image: none;
+  background-color: transparent;
+  opacity: .44;
+}
+
+:root[data-theme="dark"] :is(#work, #skills) { transition: opacity 200ms ease; }
+
 @media (min-width: 1024px) {
   :root[data-theme="dark"] .container > section[data-scene="capabilities"] {
     margin-left: 0;
     margin-right: auto;
   }
+}
+
+/* The altered heading remains in the document at its normal dimensions. */
+:root[data-theme="dark"] [data-stone-displaced] {
+  opacity: 0;
+}
+
+:root[data-theme="dark"] .site-frame[data-infinity-stone="soul"] :is(#hero-title, #systems-atlas h3, #skills h3) {
+  color: transparent;
+  -webkit-text-stroke: 1.1px #f8ba7e;
+  filter: drop-shadow(0 -2px 6px #e98f5950);
+  animation: infinity-soul 540ms ease-out both;
+}
+
+:root[data-theme="dark"] .site-frame[data-infinity-stone="time"] :is(#hero-title, [data-scene="hero"] [class*="intro"], #systems-atlas:not(:focus-within), #work article:not(:focus-within)) {
+  transform-origin: left center;
+  animation: infinity-time 1.65s ease-in-out both;
+}
+
+@keyframes infinity-soul {
+  from { color: #e7bb90; -webkit-text-stroke-color: #efc399; }
+  to { color: transparent; -webkit-text-stroke-color: #f8ba7e; }
+}
+
+@keyframes infinity-time {
+  from { clip-path: inset(-5%); opacity: 1; }
+  18% { color: #9cf4ad; }
+  to { clip-path: inset(-5% 100% -5% -5%); opacity: .18; }
 }

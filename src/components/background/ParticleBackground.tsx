@@ -5,6 +5,8 @@ import DarkAtmosphere from './DarkAtmosphere';
 import styles from './ParticleBackground.module.css';
 
 const ParticleCanvas = lazy(() => import('./ParticleCanvas'));
+const StoneCinematics = lazy(() => import('./StoneCinematics'));
+const IronScreenEffects = lazy(() => import('./IronScreenEffects'));
 const ParticlePoster = lazy(() => import('./ParticlePoster'));
 
 class ParticleBoundary extends Component<{ children: ReactNode; onFailure: () => void }, { failed: boolean }> {
@@ -53,6 +55,8 @@ export default function ParticleBackground() {
   return <div className={className} aria-hidden="true">
     {theme === 'dark' && <DarkAtmosphere reducedMotion={reducedMotion} />}
     {theme === 'light' && (reducedMotion || contextLost) && <Suspense fallback={null}><ParticlePoster /></Suspense>}
+    {theme === 'dark' && !reducedMotion && !contextLost &&
+      <Suspense fallback={null}><IronScreenEffects /><StoneCinematics /></Suspense>}
     {!reducedMotion && <Suspense fallback={null}>
       <ParticleBoundary onFailure={() => setContextLost(true)}>
         <ParticleCanvas onReady={() => setReady(true)} onContextLost={setContextLost} />

@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefO
 import * as THREE from 'three';
 import { useTheme } from '../theme/ThemeProvider';
 import DarkFigureCloud from './DarkFigureCloud';
-import { createLayoutTexture, createParticleLayouts, createSeedAttributes, FAN_PITCH, FAN_ROTOR_END, FAN_ROTOR_START, FAN_YAW } from './particleLayouts';
+import { createLaptopSignature, createLetteringDetails, createLayoutTexture, createParticleLayouts, createSeedAttributes, FAN_PITCH, FAN_ROTOR_END, FAN_ROTOR_START, FAN_YAW, LAPTOP_BEZEL_END, LAPTOP_SIGNATURE_END, LETTER_DETAIL_START, laptopDisplayPoint } from './particleLayouts';
 import { particleMotion } from './particleMotion';
 import styles from './ParticleBackground.module.css';
 
@@ -23,12 +23,22 @@ uniform float uScale;
 uniform float uOffsetX;
 uniform float uOffsetY;
 uniform float uViewportWidth;
+uniform vec2 uCanvasSize;
+uniform vec2 uPointer;
+uniform vec2 uPointerVelocity;
+uniform float uRepel;
+uniform float uLaptopName;
+uniform float uFormationHover;
 attribute float aIndex;
+attribute vec3 aLaptopSignature;
+attribute vec3 aJavaDetail;
+attribute vec3 aDsaDetail;
 attribute float aSeed;
 attribute float aTone;
 varying float vTone;
 varying float vAlpha;
 varying float vDepth;
+varying float vSignature;
 
 ${particleMotion}
 
@@ -122,14 +132,48 @@ void main() {
   float toLayout = min(4.0, fromLayout + 1.0);
   float morphAmount = smootherstep(fract(progress));
   vec3 point = mix(poseLayout(fromLayout), poseLayout(toLayout), morphAmount);
+  float band = aIndex / uCount;
+  float pane = step(${LAPTOP_BEZEL_END}, band) * (1.0 - step(0.3, band));
+  float signature = pane * (1.0 - step(${LAPTOP_SIGNATURE_END}, band)) * uLaptopName;
+  vec3 letteringPoint = rotateY(aLaptopSignature, sin(uTime * .45) * .25 * uMotion);
+  point = mix(point, letteringPoint, signature);
+  // Reveal the annotation with some of the word's own points.
+  float annotation = step(${LETTER_DETAIL_START}, band) * step(3.0, progress) * uFormationHover;
+  point = mix(point, progress < 3.5 ? aJavaDetail : aDsaDetail, annotation);
+  float detail = max(signature, annotation);
+  float circuit = 0.0;
+  if (progress == 1.0) {
+    float distanceFromDie = max(abs(point.x), abs(point.y));
+    // A wave runs across the die and through the contacts at the edges.
+    circuit = uFormationHover * smoothstep(.22, .85, 1.0 - fract(distanceFromDie * .78 - uTime * 1.25));
+  } else if (progress == 2.0 && band >= ${FAN_ROTOR_START} && band < ${FAN_ROTOR_END}) {
+    circuit = uFormationHover * smoothstep(.41, 1.2, length(point.xy));
+  }
   vec4 motion = particleMotion(point.xy, aSeed, uTime) * uMotion;
   // Keep the lettering's narrow strokes a little tighter than the hardware.
   float lettering = smoothstep(2.0, 3.0, progress);
-  point += motion.xyz * vec3(.039, .036, .072) * mix(1.0, .72, lettering);
+  point += motion.xyz * vec3(.039, .036, .072) * mix(1.0, .72, lettering) * (1.0 - detail * .93);
   point = transformPoint(point, aSeed);
 
   vec4 viewPosition = modelViewMatrix * vec4(point, 1.0);
   vec4 clipPosition = projectionMatrix * viewPosition;
+  float repelWeight = 1.0 - .65 * sin(fract(progress) * 3.14159265);
+  if (repelWeight * uRepel > 0.001) {
+    // Work in CSS pixels so the radius stays round at any viewport aspect ratio.
+    vec2 canvasPixel = (clipPosition.xy / clipPosition.w + 1.0) * 0.5 * uCanvasSize;
+    float speed = min(length(uPointerVelocity) / 1800.0, 1.0);
+    vec2 trail = uPointerVelocity * .085;
+    vec2 fromPointer = canvasPixel - uPointer;
+    float alongTrail = clamp(-dot(fromPointer, trail) / max(dot(trail, trail), 1.0), 0.0, 1.0);
+    vec2 away = fromPointer + trail * alongTrail;
+    float radius = min(64.0 + 42.0 * speed, uCanvasSize.x * 0.18);
+    float distance = length(away);
+    float falloff = 1.0 - smoothstep(0.0, radius, distance);
+    vec2 outward = away / max(distance, 0.1) * (radius * .42 + 28.0 * speed * aSeed);
+    vec2 displacement = (outward + uPointerVelocity * (.018 + .038 * aSeed)) * falloff
+      * repelWeight * uRepel * (1.0 - detail) * mix(1.0, .38 + .62 * speed, lettering);
+    clipPosition.xy += 2.0 * displacement / uCanvasSize * clipPosition.w;
+  }
   gl_Position = clipPosition;
   gl_PointSize = uPointSize * (0.72 + aSeed * 0.78) * (8.0 / max(4.0, -viewPosition.z)) * (1.0 + motion.w * .11);
 
@@ -140,8 +184,10 @@ void main() {
   float clearance = mix(heroClearance, mobileClearance, step(uViewportWidth, 3.6));
   float transition = sin(fract(progress) * 3.14159265);
   vTone = aTone;
+  vSignature = max(detail, circuit * .86);
   vDepth = clamp(1.15 - (-viewPosition.z / 22.0), 0.44, 1.0);
   vAlpha = mix(0.88, mix(0.12, 0.9, clearance), hero) * (1.0 - transition * 0.18) * (1.0 + motion.w * .19);
+  vAlpha = mix(vAlpha * (1.0 - pane * uLaptopName * .65), 1.0, max(detail, circuit * .54));
 }
 `;
 
@@ -150,6 +196,7 @@ precision highp float;
 varying float vTone;
 varying float vAlpha;
 varying float vDepth;
+varying float vSignature;
 
 void main() {
   vec2 centered = gl_PointCoord - 0.5;
@@ -157,7 +204,8 @@ void main() {
   float core = 1.0 - smoothstep(0.5, 1.0, radius);
   float accent = smoothstep(0.94, 0.995, vTone);
   vec3 lightInk = mix(vec3(0.075, 0.105, 0.13), vec3(0.12, 0.28, 0.62), accent);
-  float alpha = core * 0.52 * vDepth * vAlpha;
+  lightInk = mix(lightInk, vec3(.035, .102, .28), vSignature);
+  float alpha = core * mix(.52, .92, vSignature) * vDepth * vAlpha;
   if (alpha < 0.012) discard;
   gl_FragColor = vec4(lightInk, alpha);
 }
@@ -204,18 +252,31 @@ function useScrollMorph(morph: MutableRefObject<number>, fanAngle: MutableRefObj
 function makePointGeometry(count: number) {
   const geometry = new THREE.BufferGeometry();
   const attributes = createSeedAttributes(count);
+  const { java, dsa } = createLetteringDetails(count);
   geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
   geometry.setAttribute('aIndex', new THREE.BufferAttribute(attributes.index, 1));
+  geometry.setAttribute('aLaptopSignature', new THREE.BufferAttribute(createLaptopSignature(count), 3));
+  geometry.setAttribute('aJavaDetail', new THREE.BufferAttribute(java, 3));
+  geometry.setAttribute('aDsaDetail', new THREE.BufferAttribute(dsa, 3));
   geometry.setAttribute('aSeed', new THREE.BufferAttribute(attributes.seed, 1));
   geometry.setAttribute('aTone', new THREE.BufferAttribute(attributes.tone, 1));
   geometry.setDrawRange(0, count);
   return geometry;
 }
 
+const screenCorners = [[-1.44, -.83], [1.44, -.83], [1.44, .83], [-1.44, .83]]
+  .map(([x, y]) => laptopDisplayPoint(x, y));
+const verticalAxis = new THREE.Vector3(0, 1, 0);
+const formationScales = [0.76, 0.64, 0.74, 0.9, 0.9];
+
 function ParticleField({ count, reducedMotion, morph, fanAngle }: { count: number; reducedMotion: boolean; morph: MutableRefObject<number>; fanAngle: MutableRefObject<number> }) {
   const { theme } = useTheme();
   const uniformsRef = useRef<THREE.ShaderMaterial['uniforms'] | null>(null);
-  const { size, viewport } = useThree();
+  const { gl, size, viewport } = useThree();
+  const pointer = useRef({ x: 0, y: 0, active: false, time: 0, velocity: new THREE.Vector2() });
+  const projectedScreen = useMemo(() => screenCorners.map(() => new THREE.Vector3()), []);
+  const formationCenter = useMemo(() => new THREE.Vector3(), []);
+  const fanHoverAngle = useRef(0);
   const textureLeases = useRef(new WeakMap<THREE.Texture, number>());
 
   const layouts = useMemo(() => createParticleLayouts(count), [count]);
@@ -236,9 +297,51 @@ function ParticleField({ count, reducedMotion, morph, fanAngle }: { count: numbe
     uOffsetX: { value: 0 },
     uOffsetY: { value: 0 },
     uViewportWidth: { value: 0 },
+    uCanvasSize: { value: new THREE.Vector2(1, 1) },
+    uPointer: { value: new THREE.Vector2() },
+    uPointerVelocity: { value: new THREE.Vector2() },
+    uRepel: { value: 0 },
+    uLaptopName: { value: 0 },
+    uFormationHover: { value: 0 },
   }), [count, fanAngle, morph, reducedMotion, textureData]);
 
   uniformsRef.current = uniforms;
+
+  useEffect(() => {
+    if (theme !== 'light' || reducedMotion) return;
+    const clear = () => {
+      pointer.current.active = false;
+      pointer.current.time = 0;
+      pointer.current.velocity.set(0, 0);
+    };
+    const move = (event: PointerEvent) => {
+      if (event.pointerType !== 'mouse' && !(event.pointerType === 'pen' && event.buttons === 0)) {
+        clear();
+        return;
+      }
+      const bounds = gl.domElement.getBoundingClientRect();
+      const x = event.clientX - bounds.left;
+      const y = bounds.bottom - event.clientY;
+      const sample = pointer.current;
+      if (sample.time) {
+        const elapsed = THREE.MathUtils.clamp((event.timeStamp - sample.time) / 1000, .008, .08);
+        sample.velocity.set((x - sample.x) / elapsed, (y - sample.y) / elapsed).clampLength(0, 2100);
+      }
+      sample.x = x;
+      sample.y = y;
+      sample.time = event.timeStamp;
+      sample.active = x >= 0 && x < bounds.width && y >= 0 && y < bounds.height;
+    };
+    window.addEventListener('pointermove', move, { passive: true });
+    document.documentElement.addEventListener('pointerleave', clear);
+    window.addEventListener('blur', clear);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      document.documentElement.removeEventListener('pointerleave', clear);
+      window.removeEventListener('blur', clear);
+      clear();
+    };
+  }, [gl, reducedMotion, theme]);
 
   const pointMaterial = useMemo(() => new THREE.ShaderMaterial({
     uniforms,
@@ -265,7 +368,18 @@ function ParticleField({ count, reducedMotion, morph, fanAngle }: { count: numbe
     if (!uniformsRef.current || reducedMotion || theme !== 'light') return;
     const values = uniformsRef.current;
     values.uTime.value += Math.min(delta, 0.05);
-    values.uFanAngle.value = fanAngle.current;
+    const { x, y, active, velocity } = pointer.current;
+    const repel = values.uRepel.value;
+    const blend = 1 - Math.exp(-delta * 18);
+    const cursor = values.uPointer.value;
+    if (active) {
+      if (repel < .001) cursor.set(x, y);
+      else cursor.set(THREE.MathUtils.lerp(cursor.x, x, blend), THREE.MathUtils.lerp(cursor.y, y, blend));
+    }
+    values.uRepel.value = THREE.MathUtils.lerp(repel, Number(active), blend);
+    values.uPointerVelocity.value.lerp(velocity, blend);
+    velocity.multiplyScalar(Math.exp(-delta * 5));
+    values.uCanvasSize.value.set(Math.max(1, size.width), Math.max(1, size.height));
     values.uMorph.value = morph.current;
     const compact = size.width < 720;
     const baseScale = compact ? 0.45 : size.width < 900 ? 0.76 : Math.min(1.3, viewport.height / 4.45);
@@ -275,6 +389,44 @@ function ParticleField({ count, reducedMotion, morph, fanAngle }: { count: numbe
     values.uOffsetY.value = viewport.height * (compact ? 0.055 : 0.025);
     values.uPointSize.value = (compact ? 2.1 : 2.5) * state.gl.getPixelRatio();
     values.uViewportWidth.value = viewport.width;
+
+    let overScreen = active && morph.current === 0;
+    if (overScreen) {
+      const tilt = Math.sin(values.uTime.value * .45) * .25;
+      screenCorners.forEach((corner, index) => {
+        const point = projectedScreen[index];
+        point.set(...corner).applyAxisAngle(verticalAxis, tilt).multiplyScalar(baseScale * .76);
+        point.x += values.uOffsetX.value;
+        point.y += values.uOffsetY.value;
+        point.project(state.camera);
+        point.x = (point.x + 1) * size.width / 2;
+        point.y = (point.y + 1) * size.height / 2;
+      });
+      const sides = projectedScreen.map((point, index) => {
+        const next = projectedScreen[(index + 1) % projectedScreen.length];
+        return (next.x - point.x) * (y - point.y) - (next.y - point.y) * (x - point.x);
+      });
+      overScreen = sides.every(side => side >= 0) || sides.every(side => side <= 0);
+    }
+    values.uLaptopName.value = overScreen ? THREE.MathUtils.lerp(values.uLaptopName.value, 1, blend) : 0;
+
+    const stage = morph.current;
+    let overFormation = false;
+    if (active && Number.isInteger(stage) && stage > 0) {
+      const side = stage % 2 === 0 ? 1 : -1;
+      formationCenter.set(values.uOffsetX.value * side, values.uOffsetY.value, 0).project(state.camera);
+      const pixelsPerUnit = size.height / viewport.height * baseScale * formationScales[stage];
+      const localX = Math.abs(x - (formationCenter.x + 1) * size.width / 2) / pixelsPerUnit;
+      const localY = Math.abs(y - (formationCenter.y + 1) * size.height / 2) / pixelsPerUnit;
+      // Hardware reacts over the package/housing, and the words over their main line.
+      overFormation = stage === 2 ? Math.hypot(localX, localY) < 1.52
+        : stage === 1 ? localX < 1.22 && localY < 1.22
+          : localX < (stage === 3 ? 1.68 : 1.36) && localY < .4;
+    }
+    const hover = Number.isInteger(stage) ? THREE.MathUtils.lerp(values.uFormationHover.value, Number(overFormation), 1 - Math.exp(-delta * 10)) : 0;
+    values.uFormationHover.value = hover;
+    if (stage === 2) fanHoverAngle.current = (fanHoverAngle.current + Math.min(delta, .05) * hover * 3.1) % (Math.PI * 2);
+    values.uFanAngle.value = fanAngle.current + fanHoverAngle.current;
   });
 
   return <points geometry={points} material={pointMaterial} frustumCulled={false} />;

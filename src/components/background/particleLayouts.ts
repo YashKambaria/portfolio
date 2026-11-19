@@ -7,6 +7,13 @@ export const FAN_ROTOR_START = 0.4;
 export const FAN_ROTOR_END = 0.88;
 export const FAN_YAW = -0.18;
 export const FAN_PITCH = 0.07;
+export const LAPTOP_BEZEL_END = 0.126;
+export const LAPTOP_SIGNATURE_END = 0.24;
+export const LETTER_DETAIL_START = 0.82;
+
+export function laptopDisplayPoint(x: number, y: number, z = -0.53): Point {
+  return orient([x, y + 0.78, z - y * 0.15], -0.38, 0.32);
+}
 
 type LayoutName = (typeof PARTICLE_LAYOUTS)[number];
 type Point = [number, number, number];
@@ -66,11 +73,11 @@ function laptopPoint(index: number, count: number, random: () => number): Point 
   // An intentionally readable three-quarter laptop: upright display, hinge,
   // tapered base, discrete keyboard rows, and a centered trackpad.
   if (band < 0.3) {
-    const frame = random() < 0.42;
+    const frame = band < LAPTOP_BEZEL_END;
     const local = frame
       ? rectangleEdgePoint(3.18, 1.96, random, -0.5)
       : rectanglePoint(2.88, 1.66, random, -0.53 + gaussian(random) * 0.018);
-    point = [local[0], local[1] + 0.78, local[2] - local[1] * 0.15];
+    return laptopDisplayPoint(...local);
   } else if (band < 0.46) {
     const depth = random();
     const width = 3.35 - depth * 0.2;
@@ -243,6 +250,46 @@ export function createParticleLayouts(count: number) {
 
 export function createLaptopLayout(count: number) {
   return makeLayout('laptop', count);
+}
+
+export function createLaptopSignature(count: number) {
+  const positions = new Float32Array(count * 3);
+  const pixels = getTextPixels('Yash - Java Dev');
+  const random = seededRandom(8171);
+  for (let index = Math.ceil(count * LAPTOP_BEZEL_END); index < count * LAPTOP_SIGNATURE_END && pixels.length; index++) {
+    const [x, y] = pixels[Math.floor(pixels.length * random())];
+    positions.set(laptopDisplayPoint((x - 640 + random()) * .00228, (180 - y + random()) * .00228), index * 3);
+  }
+  return positions;
+}
+
+export function createLetteringDetails(count: number) {
+  const java = new Float32Array(count * 3);
+  const dsa = new Float32Array(count * 3);
+  const compiler = getTextPixels('javac → bytecode → JVM');
+  const complexity = getTextPixels('O(log n)');
+  const random = seededRandom(4567);
+  // The DSA detail traces a binary search down one branch of a tree.
+  const branches = [
+    [-1.02, -.58, -1.55, -.87], [-1.02, -.58, -.49, -.87],
+    [-1.55, -.87, -1.81, -1.15], [-1.55, -.87, -1.29, -1.15],
+    [-.49, -.87, -.75, -1.15], [-.49, -.87, -.23, -1.15],
+  ];
+  for (let index = Math.ceil(count * LETTER_DETAIL_START); index < count; index++) {
+    const label = compiler[Math.floor(random() * compiler.length)];
+    if (label) java.set([(label[0] - 640 + random()) * .00235, -.79 + (180 - label[1] + random()) * .00235, 0], index * 3);
+    const formula = complexity[Math.floor(random() * complexity.length)];
+    if (formula && random() < .58) {
+      dsa.set([.58 + (formula[0] - 640 + random()) * .00124, -.88 + (180 - formula[1] + random()) * .00148, .03], index * 3);
+    } else {
+      const [x1, y1, x2, y2] = branches[Math.floor(random() * branches.length)];
+      const node = random() < .34;
+      const t = node ? Math.round(random()) : random();
+      const spread = node ? .09 : .028;
+      dsa.set([.70 * (x1 + (x2 - x1) * t + gaussian(random) * spread), y1 + (y2 - y1) * t + gaussian(random) * spread, 0], index * 3);
+    }
+  }
+  return { java, dsa };
 }
 
 export function createSeedAttributes(count: number) {

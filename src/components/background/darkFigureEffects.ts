@@ -158,6 +158,7 @@ export const darkEffectsVertex = /* glsl */ `
   uniform float uDoomHeight;
   uniform float uSeatHeight;
   uniform float uLane;
+  uniform float uStageY;
   uniform float uPointSize;
   uniform float uReveal;
   uniform float uTime;
@@ -223,6 +224,7 @@ export const darkEffectsVertex = /* glsl */ `
     float height = iron ? uIronHeight : hands ? uDoomHeight : uSeatHeight;
     point *= height;
     point.x += iron && uProgress >= 1.0 ? -uLane : uLane;
+    point.y += uStageY;
     if (!iron && !hands) point.y += (uSeatHeight - uDoomHeight) * .5;
     vec4 view = modelViewMatrix * vec4(point, 1.0);
     gl_Position = projectionMatrix * view;

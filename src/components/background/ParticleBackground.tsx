@@ -1,4 +1,4 @@
-import { Component, Suspense, lazy, useEffect, useState, type ReactNode } from 'react';
+import { Component, Suspense, lazy, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useTheme } from '../theme/ThemeProvider';
 import DarkAtmosphere from './DarkAtmosphere';
@@ -25,6 +25,7 @@ export default function ParticleBackground() {
   const [reducedMotion, setReducedMotion] = useState(() =>
     typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
   );
+  const ambientLayer = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
   const [contextLost, setContextLost] = useState(false);
 
@@ -42,6 +43,12 @@ export default function ParticleBackground() {
     }
   }, [location.pathname, reducedMotion]);
 
+  useEffect(() => {
+    const frame = ambientLayer.current?.closest('.site-frame');
+    frame?.toggleAttribute('data-particles-unavailable', contextLost);
+    return () => frame?.removeAttribute('data-particles-unavailable');
+  }, [contextLost, location.pathname]);
+
   if (location.pathname !== '/') return null;
 
   const className = [
@@ -52,7 +59,7 @@ export default function ParticleBackground() {
     contextLost ? styles.contextLost : '',
   ].filter(Boolean).join(' ');
 
-  return <div className={className} aria-hidden="true">
+  return <div ref={ambientLayer} className={className} aria-hidden="true">
     {theme === 'dark' && <DarkAtmosphere reducedMotion={reducedMotion} />}
     {theme === 'light' && (reducedMotion || contextLost) && <Suspense fallback={null}><ParticlePoster /></Suspense>}
     {theme === 'dark' && !reducedMotion && !contextLost &&

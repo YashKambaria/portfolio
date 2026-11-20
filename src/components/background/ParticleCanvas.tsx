@@ -5,6 +5,8 @@ import { useTheme } from '../theme/ThemeProvider';
 import DarkFigureCloud from './DarkFigureCloud';
 import { createLaptopSignature, createLetteringDetails, createLayoutTexture, createParticleLayouts, createSeedAttributes, FAN_PITCH, FAN_ROTOR_END, FAN_ROTOR_START, FAN_YAW, LAPTOP_BEZEL_END, LAPTOP_SIGNATURE_END, LETTER_DETAIL_START, laptopDisplayPoint } from './particleLayouts';
 import { particleMotion } from './particleMotion';
+import { useParticlePointer } from './useParticlePointer';
+import { useParticleStages, type ParticleStages } from './useParticleStages';
 import styles from './ParticleBackground.module.css';
 
 const POINT_VERTEX = /* glsl */ `
@@ -23,6 +25,8 @@ uniform float uScale;
 uniform float uOffsetX;
 uniform float uOffsetY;
 uniform float uViewportWidth;
+uniform float uCompact;
+uniform float uStageVisible;
 uniform vec2 uCanvasSize;
 uniform vec2 uPointer;
 uniform vec2 uPointerVelocity;
@@ -187,7 +191,8 @@ void main() {
   vSignature = max(detail, circuit * .86);
   vDepth = clamp(1.15 - (-viewPosition.z / 22.0), 0.44, 1.0);
   vAlpha = mix(0.88, mix(0.12, 0.9, clearance), hero) * (1.0 - transition * 0.18) * (1.0 + motion.w * .19);
-  vAlpha = mix(vAlpha * (1.0 - pane * uLaptopName * .65), 1.0, max(detail, circuit * .54));
+  vAlpha = mix(vAlpha, .95, uCompact);
+  vAlpha = mix(vAlpha * (1.0 - pane * uLaptopName * .65), 1.0, max(detail, circuit * .54)) * uStageVisible;
 }
 `;
 
@@ -269,11 +274,11 @@ const screenCorners = [[-1.44, -.83], [1.44, -.83], [1.44, .83], [-1.44, .83]]
 const verticalAxis = new THREE.Vector3(0, 1, 0);
 const formationScales = [0.76, 0.64, 0.74, 0.9, 0.9];
 
-function ParticleField({ count, reducedMotion, morph, fanAngle }: { count: number; reducedMotion: boolean; morph: MutableRefObject<number>; fanAngle: MutableRefObject<number> }) {
+function ParticleField({ count, reducedMotion, morph, fanAngle, stages }: { count: number; reducedMotion: boolean; morph: MutableRefObject<number>; fanAngle: MutableRefObject<number>; stages: MutableRefObject<ParticleStages> }) {
   const { theme } = useTheme();
   const uniformsRef = useRef<THREE.ShaderMaterial['uniforms'] | null>(null);
   const { gl, size, viewport } = useThree();
-  const pointer = useRef({ x: 0, y: 0, active: false, time: 0, velocity: new THREE.Vector2() });
+  const pointer = useParticlePointer(gl.domElement, theme === 'light' && !reducedMotion);
   const projectedScreen = useMemo(() => screenCorners.map(() => new THREE.Vector3()), []);
   const formationCenter = useMemo(() => new THREE.Vector3(), []);
   const fanHoverAngle = useRef(0);
@@ -297,6 +302,8 @@ function ParticleField({ count, reducedMotion, morph, fanAngle }: { count: numbe
     uOffsetX: { value: 0 },
     uOffsetY: { value: 0 },
     uViewportWidth: { value: 0 },
+    uCompact: { value: 0 },
+    uStageVisible: { value: 1 },
     uCanvasSize: { value: new THREE.Vector2(1, 1) },
     uPointer: { value: new THREE.Vector2() },
     uPointerVelocity: { value: new THREE.Vector2() },
@@ -306,42 +313,6 @@ function ParticleField({ count, reducedMotion, morph, fanAngle }: { count: numbe
   }), [count, fanAngle, morph, reducedMotion, textureData]);
 
   uniformsRef.current = uniforms;
-
-  useEffect(() => {
-    if (theme !== 'light' || reducedMotion) return;
-    const clear = () => {
-      pointer.current.active = false;
-      pointer.current.time = 0;
-      pointer.current.velocity.set(0, 0);
-    };
-    const move = (event: PointerEvent) => {
-      if (event.pointerType !== 'mouse' && !(event.pointerType === 'pen' && event.buttons === 0)) {
-        clear();
-        return;
-      }
-      const bounds = gl.domElement.getBoundingClientRect();
-      const x = event.clientX - bounds.left;
-      const y = bounds.bottom - event.clientY;
-      const sample = pointer.current;
-      if (sample.time) {
-        const elapsed = THREE.MathUtils.clamp((event.timeStamp - sample.time) / 1000, .008, .08);
-        sample.velocity.set((x - sample.x) / elapsed, (y - sample.y) / elapsed).clampLength(0, 2100);
-      }
-      sample.x = x;
-      sample.y = y;
-      sample.time = event.timeStamp;
-      sample.active = x >= 0 && x < bounds.width && y >= 0 && y < bounds.height;
-    };
-    window.addEventListener('pointermove', move, { passive: true });
-    document.documentElement.addEventListener('pointerleave', clear);
-    window.addEventListener('blur', clear);
-    return () => {
-      window.removeEventListener('pointermove', move);
-      document.documentElement.removeEventListener('pointerleave', clear);
-      window.removeEventListener('blur', clear);
-      clear();
-    };
-  }, [gl, reducedMotion, theme]);
 
   const pointMaterial = useMemo(() => new THREE.ShaderMaterial({
     uniforms,
@@ -368,7 +339,10 @@ function ParticleField({ count, reducedMotion, morph, fanAngle }: { count: numbe
     if (!uniformsRef.current || reducedMotion || theme !== 'light') return;
     const values = uniformsRef.current;
     values.uTime.value += Math.min(delta, 0.05);
-    const { x, y, active, velocity } = pointer.current;
+    const { compact, bounds, light } = stages.current;
+    const display = !compact || bounds !== null;
+    const { x, y, active: pointing, velocity } = pointer.current;
+    const active = pointing && display;
     const repel = values.uRepel.value;
     const blend = 1 - Math.exp(-delta * 18);
     const cursor = values.uPointer.value;
@@ -380,17 +354,24 @@ function ParticleField({ count, reducedMotion, morph, fanAngle }: { count: numbe
     values.uPointerVelocity.value.lerp(velocity, blend);
     velocity.multiplyScalar(Math.exp(-delta * 5));
     values.uCanvasSize.value.set(Math.max(1, size.width), Math.max(1, size.height));
-    values.uMorph.value = morph.current;
-    const compact = size.width < 720;
-    const baseScale = compact ? 0.45 : size.width < 900 ? 0.76 : Math.min(1.3, viewport.height / 4.45);
+    const stage = compact ? light : morph.current;
+    values.uMorph.value = stage;
+    values.uStageVisible.value = Number(display);
+    values.uCompact.value = Number(compact);
+    const unitsPerPixel = viewport.height / Math.max(1, size.height);
+    const baseScale = bounds && compact
+      ? Math.min(bounds.width / 3.65, bounds.height / (stage < 1 ? 2.9 : 2.7)) * unitsPerPixel
+      : size.width < 900 ? 0.76 : Math.min(1.3, viewport.height / 4.45);
     values.uScale.value = baseScale;
-    const horizontalOffset = compact ? 0.26 : size.width < 900 ? 0.28 : 0.29;
-    values.uOffsetX.value = viewport.width * horizontalOffset;
-    values.uOffsetY.value = viewport.height * (compact ? 0.055 : 0.025);
-    values.uPointSize.value = (compact ? 2.1 : 2.5) * state.gl.getPixelRatio();
+    const horizontalOffset = size.width < 900 ? 0.28 : 0.29;
+    values.uOffsetX.value = compact ? 0 : viewport.width * horizontalOffset;
+    values.uOffsetY.value = compact && bounds
+      ? (gl.domElement.getBoundingClientRect().bottom - (bounds.top + bounds.bottom) / 2 - size.height / 2 - (stage === 0 ? bounds.height * .07 : 0)) * unitsPerPixel
+      : viewport.height * 0.025;
+    values.uPointSize.value = (compact ? 2.22 : 2.5) * state.gl.getPixelRatio();
     values.uViewportWidth.value = viewport.width;
 
-    let overScreen = active && morph.current === 0;
+    let overScreen = active && stage === 0;
     if (overScreen) {
       const tilt = Math.sin(values.uTime.value * .45) * .25;
       screenCorners.forEach((corner, index) => {
@@ -410,7 +391,6 @@ function ParticleField({ count, reducedMotion, morph, fanAngle }: { count: numbe
     }
     values.uLaptopName.value = overScreen ? THREE.MathUtils.lerp(values.uLaptopName.value, 1, blend) : 0;
 
-    const stage = morph.current;
     let overFormation = false;
     if (active && Number.isInteger(stage) && stage > 0) {
       const side = stage % 2 === 0 ? 1 : -1;
@@ -426,7 +406,7 @@ function ParticleField({ count, reducedMotion, morph, fanAngle }: { count: numbe
     const hover = Number.isInteger(stage) ? THREE.MathUtils.lerp(values.uFormationHover.value, Number(overFormation), 1 - Math.exp(-delta * 10)) : 0;
     values.uFormationHover.value = hover;
     if (stage === 2) fanHoverAngle.current = (fanHoverAngle.current + Math.min(delta, .05) * hover * 3.1) % (Math.PI * 2);
-    values.uFanAngle.value = fanAngle.current + fanHoverAngle.current;
+    values.uFanAngle.value = (compact ? values.uTime.value * .64 : fanAngle.current) + fanHoverAngle.current;
   });
 
   return <points geometry={points} material={pointMaterial} frustumCulled={false} />;
@@ -437,9 +417,10 @@ function ParticleScene({ count, reducedMotion }: { count: number; reducedMotion:
   const lightProgress = useRef(0);
   const fanAngle = useRef(0);
   useScrollMorph(lightProgress, fanAngle);
+  const stages = useParticleStages();
   return <>
-    <group visible={theme === 'light'}><ParticleField count={count} reducedMotion={reducedMotion} morph={lightProgress} fanAngle={fanAngle} /></group>
-    {theme === 'dark' && <DarkFigureCloud count={count} />}
+    <group visible={theme === 'light'}><ParticleField count={count} reducedMotion={reducedMotion} morph={lightProgress} fanAngle={fanAngle} stages={stages} /></group>
+    {theme === 'dark' && <DarkFigureCloud count={count} stages={stages} />}
   </>;
 }
 

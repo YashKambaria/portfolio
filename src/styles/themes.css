@@ -48,6 +48,13 @@
 
 :root[data-theme="dark"] :is(#work, #skills) { transition: opacity 200ms ease; }
 
+@media (max-width: 1023px) {
+  :root[data-theme="dark"] .site-frame,
+  :root[data-theme="dark"] #work,
+  :root[data-theme="dark"] #skills { background-attachment: scroll; }
+  :root[data-theme="dark"] .site-frame[data-doom-debris] :is(#work, #skills) { opacity: 1; }
+}
+
 @media (min-width: 1024px) {
   :root[data-theme="dark"] .container > section[data-scene="capabilities"] {
     margin-left: 0;
@@ -58,6 +65,13 @@
 /* The altered heading remains in the document at its normal dimensions. */
 :root[data-theme="dark"] [data-stone-displaced] {
   opacity: 0;
+}
+
+@media (max-width: 1023px) {
+  :root[data-theme="dark"] .site-frame[data-infinity-stone="soul"] [data-mobile-stone-copy] {
+    color: #f8ba7e;
+    text-shadow: 0 0 8px #e98f5950;
+  }
 }
 
 :root[data-theme="dark"] .site-frame[data-infinity-stone="soul"] :is(#hero-title, #systems-atlas h3, #skills h3) {

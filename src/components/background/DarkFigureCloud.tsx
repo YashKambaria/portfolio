@@ -1,10 +1,12 @@
 import { useFrame, useThree } from '@react-three/fiber';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { Vector2, Vector4, type ShaderMaterial } from 'three';
 import { createDarkFigureEffects, darkCueZones, darkEffectsFragment, darkEffectsVertex, findInfinityStone, insideCue, stoneDepth, stonePowers, throneBelt, throneCenter } from './darkFigureEffects';
 import { createDoomDebris, debrisVertex } from './doomDebris';
 import { createIronLaunchParticles, ironLaunchVertex, ironShots, ironImpactEvent, ironLaunchEvent, ironResetEvent, type IronImpact, type IronLaunch } from './ironLaunchParticles';
 import { loadFigureReference, sampleDarkFigure, touchesSilhouette } from './darkFigurePoints';
+import { useParticlePointer } from './useParticlePointer';
+import { mobileParticleQuery, type ParticleStages } from './useParticleStages';
 import { particleMotion } from './particleMotion';
 import { createPowerBeam, powerBeamVertex } from './powerStone';
 
@@ -15,6 +17,8 @@ const vertexShader = /* glsl */ `
   uniform float uDoomHeight;
   uniform float uSeatHeight;
   uniform float uLane;
+  uniform float uStageY;
+  uniform float uStageVisible;
   uniform float uPointSize;
   uniform float uReveal;
   uniform float uTime;
@@ -92,6 +96,7 @@ const vertexShader = /* glsl */ `
     point += vec3(cos(angle) * .15, sin(angle) * .10, sin(angle * 2.0) * .17)
       * burst * (.35 + seed) * mix(uIronHeight, uDoomHeight, morph);
     point.x += side * uLane;
+    point.y += uStageY;
 
     // Repel the nearby surface points and pass momentum along the wake of a swipe.
     // Faces retain their sampled position while armor, cape and stone respond.
@@ -147,7 +152,7 @@ const vertexShader = /* glsl */ `
     vec3 litBelt = mix(vec3(.42, .54, .28), vec3(.90, 1.0, .68), aSeatDetail.x);
     vColor = mix(vColor, mix(litBelt, litThrone, furniture), glow * .88);
     vAlpha = mix(vAlpha, .91, glow * .78);
-    vAlpha *= (1.0 - burst * .32) * ease(uReveal) * (1.0 + motion.w * mix(.13, .025, anchor));
+    vAlpha *= uStageVisible * (1.0 - burst * .32) * ease(uReveal) * (1.0 + motion.w * mix(.13, .025, anchor));
   }
 `;
 
@@ -168,9 +173,9 @@ const progressAt = (element: Element | null, readingLine: number) => {
   return bounds ? Math.min(1, Math.max(0, (readingLine - bounds.top) / Math.max(1, bounds.height))) : 0;
 };
 
-export default function DarkFigureCloud({ count }: { count: number }) {
+export default function DarkFigureCloud({ count, stages }: { count: number; stages: MutableRefObject<ParticleStages> }) {
   const { gl, size, viewport, invalidate } = useThree();
-  const pointer = useRef({ x: 0, y: 0, time: 0, active: false, velocity: new Vector2() });
+  const pointer = useParticlePointer(gl.domElement, true, 1600);
   const cueActive = useRef(darkCueZones.map(() => false));
   const launch = useRef({ dwell: 0, shot: 0, hit: 0, time: 0, blocked: false });
   const doomArrival = useRef<'unseen' | 'armed' | 'played'>('unseen');
@@ -190,6 +195,7 @@ export default function DarkFigureCloud({ count }: { count: number }) {
   const uniforms = useMemo<ShaderMaterial['uniforms']>(() => ({
     uProgress: { value: 0 }, uSit: { value: 0 },
     uIronHeight: { value: 1 }, uDoomHeight: { value: 1 }, uSeatHeight: { value: 1 },
+    uStageY: { value: 0 }, uStageVisible: { value: 1 },
     uLane: { value: 0 }, uPointSize: { value: 1 },
     uReveal: { value: 0 }, uTime: { value: 0 },
     uCues: { value: new Float32Array(darkCueZones.length) },
@@ -226,6 +232,7 @@ export default function DarkFigureCloud({ count }: { count: number }) {
       frame?.removeAttribute('data-doom-debris');
       frame?.removeAttribute('data-doom-arrived');
       frame?.removeAttribute('data-infinity-stone');
+      frame?.removeAttribute('data-mobile-stone');
       frame?.removeAttribute('data-iron-sequence');
     };
   }, [gl, uniforms]);
@@ -246,37 +253,6 @@ export default function DarkFigureCloud({ count }: { count: number }) {
   }, []);
 
   useEffect(() => {
-    const clear = () => {
-      pointer.current.active = false;
-      pointer.current.time = 0;
-      pointer.current.velocity.set(0, 0);
-    };
-    const move = (event: PointerEvent) => {
-      if (event.pointerType !== 'mouse' && !(event.pointerType === 'pen' && event.buttons === 0)) return clear();
-      const bounds = gl.domElement.getBoundingClientRect();
-      const x = event.clientX - bounds.left;
-      const y = bounds.bottom - event.clientY;
-      const sample = pointer.current;
-      if (sample.time) {
-        const elapsed = Math.min(.08, Math.max(.008, (event.timeStamp - sample.time) / 1000));
-        sample.velocity.set(x - sample.x, y - sample.y).divideScalar(elapsed * 1600).clampLength(0, 1);
-      }
-      sample.x = x;
-      sample.y = y;
-      sample.active = true;
-      sample.time = event.timeStamp;
-    };
-    window.addEventListener('pointermove', move, { passive: true });
-    document.documentElement.addEventListener('pointerleave', clear);
-    window.addEventListener('blur', clear);
-    return () => {
-      window.removeEventListener('pointermove', move);
-      document.documentElement.removeEventListener('pointerleave', clear);
-      window.removeEventListener('blur', clear);
-    };
-  }, [gl]);
-
-  useEffect(() => {
     if (!targets) return;
     const { iron, doom, seat } = targets;
     darkCueZones.slice(0, 4).forEach((zone, index) => {
@@ -295,7 +271,19 @@ export default function DarkFigureCloud({ count }: { count: number }) {
     }
   }, [targets, uniforms]);
 
+  const updateDoomArrival = useCallback((progress: number, ready: boolean, frame: HTMLElement | null) => {
+    if (doomArrival.current === 'unseen' && progress < 2) doomArrival.current = 'armed';
+    if (doomArrival.current === 'armed' && progress === 2 && ready) {
+      doomArrival.current = 'played';
+      frame?.setAttribute('data-doom-arrived', '');
+    } else if (doomArrival.current === 'played' && progress <= 1) {
+      doomArrival.current = 'armed';
+      frame?.removeAttribute('data-doom-arrived');
+    }
+  }, []);
+
   useLayoutEffect(() => {
+    const mobile = window.matchMedia(mobileParticleQuery);
     const frameElement = gl.domElement.closest<HTMLElement>('.site-frame');
     const [heroGap, doomGap, throneGap] = ['hero-atlas', 'atlas-projects', 'capabilities-practice']
       .map(name => document.querySelector(`[data-particle-transition="${name}"]`));
@@ -304,15 +292,10 @@ export default function DarkFigureCloud({ count }: { count: number }) {
       frame = 0;
       const line = window.innerHeight * .46;
       const progress = progressAt(heroGap, line) + progressAt(doomGap, line);
-      if (doomArrival.current === 'unseen' && progress < 2) doomArrival.current = 'armed';
-      uniforms.uProgress.value = progress;
-      uniforms.uSit.value = progressAt(throneGap, line);
-      if (doomArrival.current === 'armed' && progress === 2 && targets) {
-        doomArrival.current = 'played';
-        frameElement?.setAttribute('data-doom-arrived', '');
-      } else if (doomArrival.current === 'played' && progress <= 1) {
-        doomArrival.current = 'armed';
-        frameElement?.removeAttribute('data-doom-arrived');
+      if (!mobile.matches) {
+        uniforms.uProgress.value = progress;
+        uniforms.uSit.value = progressAt(throneGap, line);
+        updateDoomArrival(progress, Boolean(targets), frameElement);
       }
       invalidate();
     };
@@ -331,7 +314,7 @@ export default function DarkFigureCloud({ count }: { count: number }) {
       window.removeEventListener('resize', schedule);
       window.cancelAnimationFrame(frame);
     };
-  }, [gl, invalidate, targets, uniforms]);
+  }, [gl, invalidate, targets, uniforms, updateDoomArrival]);
 
   useFrame(({ gl, camera }, delta) => {
     if (!targets) return;
@@ -341,11 +324,21 @@ export default function DarkFigureCloud({ count }: { count: number }) {
     const gutter = (size.width - Math.min(size.width - 48, 1200)) / 2;
     const laneWidth = wide ? gutter + (size.width - gutter * 2) * .38 : size.width * .34;
     const lane = laneWidth * scale;
-    uniforms.uLane.value = (viewport.width - lane) / 2;
-    uniforms.uIronHeight.value = Math.min(viewport.height * (wide ? .87 : .65), lane * .80 / Math.max(iron.width, .4));
-    uniforms.uDoomHeight.value = Math.min(viewport.height * (wide ? .82 : .57), lane * .83 / Math.max(doom.width, .5));
-    uniforms.uSeatHeight.value = Math.min(uniforms.uDoomHeight.value, lane * .91 / Math.max(seat.width, .5));
+    const { compact, bounds, dark, throne } = stages.current;
+    const unitsPerPixel = viewport.height / Math.max(1, size.height);
+    const mobileHeight = bounds ? bounds.height * .89 * unitsPerPixel : 0;
+    uniforms.uStageVisible.value = Number(!compact || bounds !== null);
+    uniforms.uStageY.value = compact && bounds
+      ? (gl.domElement.getBoundingClientRect().bottom - (bounds.top + bounds.bottom) / 2 - size.height / 2) * unitsPerPixel : 0;
+    uniforms.uLane.value = compact ? 0 : (viewport.width - lane) / 2;
+    uniforms.uIronHeight.value = compact ? mobileHeight : Math.min(viewport.height * (wide ? .87 : .65), lane * .80 / Math.max(iron.width, .4));
+    uniforms.uDoomHeight.value = compact ? mobileHeight : Math.min(viewport.height * (wide ? .82 : .57), lane * .83 / Math.max(doom.width, .5));
+    uniforms.uSeatHeight.value = compact ? mobileHeight : Math.min(uniforms.uDoomHeight.value, lane * .91 / Math.max(seat.width, .5));
     uniforms.uPointSize.value = gl.getPixelRatio() * (wide ? 2.2 : 1.75);
+    if (compact) {
+      uniforms.uProgress.value = dark;
+      uniforms.uSit.value = throne;
+    }
     uniforms.uDebrisViewport.value.set(viewport.width, viewport.height);
     const elapsed = Math.min(delta, .05);
     uniforms.uTime.value += elapsed;
@@ -354,7 +347,7 @@ export default function DarkFigureCloud({ count }: { count: number }) {
     const sample = pointer.current;
     const x = sample.x / Math.max(size.width, 1);
     const y = sample.y / Math.max(size.height, 1);
-    const active = sample.active && x >= 0 && x <= 1 && y >= 0 && y <= 1;
+    const active = sample.active && (!compact || bounds !== null) && x >= 0 && x <= 1 && y >= 0 && y <= 1;
     const worldX = (x - .5) * viewport.width;
     const worldY = (y - .5) * viewport.height;
     const brush = uniforms.uBrush.value;
@@ -364,16 +357,18 @@ export default function DarkFigureCloud({ count }: { count: number }) {
       brush.x += (worldX - brush.x) * follow;
       brush.y += (worldY - brush.y) * follow;
     }
-    brush.z += (sample.velocity.x - brush.z) * blend;
-    brush.w += (sample.velocity.y - brush.w) * blend;
+    brush.z += (sample.velocity.x / 1600 - brush.z) * blend;
+    brush.w += (sample.velocity.y / 1600 - brush.w) * blend;
     sample.velocity.multiplyScalar(Math.exp(-elapsed * 5));
 
     const progress = uniforms.uProgress.value;
+    const frameElement = siteFrame.current;
+    if (compact) updateDoomArrival(progress, true, frameElement);
     const sit = uniforms.uSit.value;
     const pose = progress === 0 || progress === 1 ? 0 : progress === 2 && sit === 0 ? 1 : progress === 2 && sit === 1 ? 2 : -1;
-    const frame = pose === 0 ? iron.frame : pose === 1 ? doom.frame : pose === 2 ? seat.frame : undefined;
+    const frame = compact && !bounds ? undefined : pose === 0 ? iron.frame : pose === 1 ? doom.frame : pose === 2 ? seat.frame : undefined;
     const height = pose === 0 ? uniforms.uIronHeight.value : pose === 1 ? uniforms.uDoomHeight.value : uniforms.uSeatHeight.value;
-    const centerY = pose === 2 ? (height - uniforms.uDoomHeight.value) * .5 : 0;
+    const centerY = uniforms.uStageY.value + (pose === 2 ? (height - uniforms.uDoomHeight.value) * .5 : 0);
     const centerX = uniforms.uLane.value * (pose === 0 && progress === 1 ? -1 : 1);
     const sourceX = frame ? (worldX - centerX) / height * frame.height + frame.centerX : 0;
     const sourceY = frame ? frame.centerY - (worldY - centerY) / height * frame.height : 0;
@@ -384,9 +379,17 @@ export default function DarkFigureCloud({ count }: { count: number }) {
     const stoneX = frame ? sourceX + worldX * (stonePerspective - 1) / height * frame.height : 0;
     const stoneY = frame ? sourceY - worldY * (stonePerspective - 1) / height * frame.height : 0;
     const gauntlet = darkCueZones[1];
-    const gauntletHover = active && pose === 0 && !!frame
+    let selectedStone = -1;
+    const selection = frameElement?.dataset.mobileStone;
+    if (selection) {
+      const [index, until] = selection.split(':').map(Number);
+      if (!compact || pose !== 0 || performance.now() >= until) frameElement?.removeAttribute('data-mobile-stone');
+      else if (bounds) selectedStone = index;
+    }
+    const hasSelectedStone = selectedStone >= 0;
+    const gauntletHover = hasSelectedStone || active && pose === 0 && !!frame
       && (insideCue(sourceX, sourceY, gauntlet) || insideCue(stoneX, stoneY, gauntlet));
-    const stoneIndex = gauntletHover ? findInfinityStone(stoneX, stoneY) : -1;
+    const stoneIndex = hasSelectedStone ? selectedStone : gauntletHover ? findInfinityStone(stoneX, stoneY) : -1;
     // Resolve the gauntlet before advancing the attack, including a pending impact.
     if (gauntletHover && launch.current.time && launch.current.hit < ironShots.length) {
       window.dispatchEvent(new Event(ironResetEvent));
@@ -417,7 +420,6 @@ export default function DarkFigureCloud({ count }: { count: number }) {
     uniforms.uDebrisPower.value = pose === 1 ? power + (Number(standingHover) - power) * (1 - Math.exp(-elapsed * (standingHover ? 6 : 10))) : 0;
     const debrisVisible = uniforms.uDebrisPower.value > .008;
     uniforms.uDebrisTime.value = debrisVisible ? uniforms.uDebrisTime.value + elapsed : 0;
-    const frameElement = siteFrame.current;
     if (frameElement && frameElement.hasAttribute('data-doom-debris') !== debrisVisible) {
       frameElement.toggleAttribute('data-doom-debris', debrisVisible);
     }
@@ -428,7 +430,7 @@ export default function DarkFigureCloud({ count }: { count: number }) {
     }
 
     const sequence = launch.current;
-    const firing = ironHover && !protectedHover;
+    const firing = ironHover && !protectedHover && (!sample.touch || sample.held);
     if (!firing) sequence.blocked = false;
     if (!sequence.time) {
       sequence.dwell = firing && !sequence.blocked ? sequence.dwell + elapsed : 0;

@@ -40,16 +40,12 @@
 .contextLost .canvasHost { opacity: 0; }
 
 @media (max-width: 1023px) {
-  /* At compact widths there is no dedicated right-side reading lane. */
-  .layer { --particle-layer-opacity: 0.52; }
+  .layer { --particle-layer-opacity: .93; }
+  .poster { display: none; }
 }
 
-@media (max-width: 700px) {
-  .layer { inset-block-start: 64px; --particle-layer-opacity: 0.46; }
-}
-
-@media (max-width: 480px) {
-  .layer { --particle-layer-opacity: 0.25; }
+@media (max-width: 767px) {
+  .layer { inset-block-start: 64px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

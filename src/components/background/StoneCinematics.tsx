@@ -7,7 +7,10 @@ type GlyphParticle = { x: number; y: number; seed: number; pigment: number };
 type Point = { x: number; y: number };
 
 function visibleHeading() {
-  const candidates = [...document.querySelectorAll<HTMLElement>('#hero-title, #systems-atlas h3')];
+  const compact = window.matchMedia('(max-width: 1023px)').matches;
+  const candidates = [...document.querySelectorAll<HTMLElement>(compact
+    ? '#hero-title, #systems-atlas h3, [data-mobile-stone-copy]'
+    : '#hero-title, #systems-atlas h3')];
   return candidates.map(element => {
     const { top, bottom } = element.getBoundingClientRect();
     return { element, visible: Math.min(innerHeight, bottom) - Math.max(70, top) };
@@ -131,15 +134,19 @@ function teleport(overlay: HTMLElement, heading: HTMLElement) {
   const copy = document.createElement('div');
   copy.className = styles.teleported;
   copy.textContent = heading.textContent;
-  const available = Math.max(180, Math.min(source.width, innerWidth * .39));
+  const narrow = innerWidth <= 640;
+  const available = narrow ? innerWidth * .66 : Math.max(180, Math.min(source.width, innerWidth * .39));
   const left = source.left + source.width / 2 < innerWidth / 2
     ? innerWidth - available - Math.max(24, innerWidth * .07)
     : Math.max(24, innerWidth * .07);
-  const top = Math.max(90, Math.min(source.top - 18, innerHeight - 185));
+  const top = narrow
+    ? innerHeight * (source.top > innerHeight / 2 ? .25 : .56)
+    : Math.max(90, Math.min(source.top - 18, innerHeight - 185));
   Object.assign(copy.style, {
     left: `${left}px`, top: `${top}px`, width: `${available}px`,
     fontFamily: style.fontFamily, fontWeight: style.fontWeight, fontStyle: style.fontStyle,
-    fontSize: style.fontSize, letterSpacing: style.letterSpacing, lineHeight: style.lineHeight,
+    fontSize: narrow ? `${Math.min(parseFloat(style.fontSize), 27)}px` : style.fontSize,
+    letterSpacing: style.letterSpacing, lineHeight: narrow ? '1.16' : style.lineHeight,
   });
   const departures = [
     [source.left + Math.min(source.width * .24, 135), source.top + Math.min(source.height * .49, 70)],
@@ -159,7 +166,7 @@ function mindTakeover(overlay: HTMLElement, heading: HTMLElement) {
   const panel = document.createElement('div');
   panel.className = styles.mindPanel;
   panel.style.left = `${bounds.left}px`;
-  panel.style.top = `${Math.max(80, bounds.top - 4)}px`;
+  panel.style.top = `${Math.max(80, Math.min(bounds.top - 4, innerHeight - 120))}px`;
   panel.style.width = `${Math.min(430, bounds.width)}px`;
   const label = document.createElement('span');
   label.textContent = 'STARK INTERFACE · CHANNEL OPEN';

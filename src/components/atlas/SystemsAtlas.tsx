@@ -20,7 +20,7 @@ export default function SystemsAtlas() {
   const displayed = mindPreview ? projects[(projects.indexOf(selected) + 1) % projects.length] : selected;
 
   return <section ref={atlas} className={styles.atlas} aria-labelledby="atlas-title">
-    <div className={styles.topline}><span className="eyebrow">A MAP OF THE WORK</span><span className={styles.mapIcon}><Network size={16}/> SYSTEMS ATLAS</span></div>
+    <div className={styles.topline}><span className="eyebrow">A MAP OF THE WORK</span><span id="atlas-title" className={styles.mapIcon}><Network size={16}/> SYSTEMS ATLAS</span></div>
     <div className={styles.atlasGrid}>
       <div className={styles.projectRail} role="group" aria-label="Choose a project to inspect">
         {projects.map((project, index) => <button key={project.slug} type="button" className={`${styles.projectButton} ${selected.slug === project.slug ? styles.active : ''}`} aria-pressed={selected.slug === project.slug} onClick={() => setSelected(project)}>

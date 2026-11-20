@@ -85,6 +85,7 @@ export const ironLaunchVertex = /* glsl */ `
   uniform float uProgress;
   uniform float uIronHeight;
   uniform float uLane;
+  uniform float uStageY;
   uniform float uPointSize;
   uniform float uIronLaunchTime;
   uniform float uIronLaunchPower;
@@ -122,6 +123,7 @@ export const ironLaunchVertex = /* glsl */ `
       point.yz = mat2(cos(opened * .38), sin(opened * .38), -sin(opened * .38), cos(opened * .38)) * point.yz;
       point = (point + vec3(side * (.132 + .057 * opened), .285 + .030 * opened, -.10)) * uIronHeight;
       point.x += lane;
+      point.y += uStageY;
       vColor = mix(vec3(.28, .10, .10), vec3(.71, .61, .49), shade);
       presence = opened * .84 * (1.0 - step(1.001, uProgress));
     } else {
@@ -144,7 +146,7 @@ export const ironLaunchVertex = /* glsl */ `
       float life = clamp(age / duration, 0.0, 1.0);
       float deploy = smoothstep(-readyTime, 0.0, age);
       float depth = cameraPosition.z - 1.12;
-      vec3 start = vec3(lane + side * .185 * uIronHeight, .305 * uIronHeight, -.17 * uIronHeight);
+      vec3 start = vec3(lane + side * .185 * uIronHeight, .305 * uIronHeight + uStageY, -.17 * uIronHeight);
       vec3 impactPoint = vec3(target * uDebrisViewport * (1.0 - depth / cameraPosition.z), depth);
       vec3 direction = normalize(impactPoint - start);
       vec3 end = impactPoint - direction * .067 * uIronHeight;

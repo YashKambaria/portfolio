@@ -25,3 +25,14 @@
 .links a { display: inline-flex; min-height: 44px; align-items: center; gap: 6px; font-size: 13px; text-underline-offset: 4px; }
 .privateNote { color: var(--color-text-muted); font-size: 12px; }
 @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+
+@media (max-width: 640px) {
+  .grid { gap: 16px; }
+  .body { padding: 18px; }
+  .visual, .splitwiseVisual { min-height: 168px; }
+  .visual img { height: 168px; }
+  .parking img { width: 110px; height: 110px; }
+  .summary { min-height: 0; }
+  .body h3 { font-size: 28px; }
+  .links { gap: 8px 18px; }
+}

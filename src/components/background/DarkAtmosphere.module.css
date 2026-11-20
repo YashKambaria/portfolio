@@ -56,10 +56,8 @@
 .archEtching { opacity: calc(.19 + var(--atmosphere-throne) * .08); }
 .archSignal { opacity: calc(.22 + var(--atmosphere-throne) * .10); }
 
-@media (max-width: 700px) {
-  .iron, .doom { inline-size: max(320px, 63vw); }
-  .reactor { inline-size: 86%; }
-  .atmosphere { opacity: .56; }
+@media (max-width: 1023px) {
+  .atmosphere { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

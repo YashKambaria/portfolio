@@ -18,6 +18,7 @@ export function createPowerBeam() {
 export const powerBeamVertex = /* glsl */ `
   uniform float uProgress;
   uniform float uLane;
+  uniform float uStageY;
   uniform float uIronHeight;
   uniform float uPointSize;
   uniform float uReveal;
@@ -39,6 +40,7 @@ export const powerBeamVertex = /* glsl */ `
 
     vec3 origin = vec3(uProtected[1].xy, .031) * uIronHeight;
     origin.x += (uProgress >= 1.0 ? -1.0 : 1.0) * uLane;
+    origin.y += uStageY;
     float seed = fract(sin(dot(position, vec3(91.7, 180.2, 49.4))) * 47381.21);
     float charge = smoothstep(0.0, .78, uPowerAge) * uPowerCharge;
     float release = max(0.0, uPowerAge - .78);

@@ -1,41 +1,15 @@
-.theme-veil {
-  position: fixed;
-  z-index: 20;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-  visibility: hidden;
-  --theme-veil-color: #0B1511;
+/* The incoming page is revealed over a still image of the outgoing page. */
+:root[data-theme-reveal]::view-transition-group(root),
+:root[data-theme-reveal]::view-transition-image-pair(root),
+:root[data-theme-reveal]::view-transition-old(root),
+:root[data-theme-reveal]::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
 }
 
-.theme-veil[data-target="light"] { --theme-veil-color: #F4F3EF; }
-.theme-veil[data-phase] { visibility: visible; }
+:root[data-theme-reveal]::view-transition-old(root) { z-index: 0; }
 
-.theme-veil-ink {
-  position: absolute;
-  left: var(--theme-origin-x, 50%);
-  top: var(--theme-origin-y, 50%);
-  width: 320vmax;
-  aspect-ratio: 1;
-  border-radius: 48% 52% 46% 54% / 53% 47% 54% 46%;
-  background: var(--theme-veil-color);
-  mask: url('/ink-spill-mask.svg') center / contain no-repeat;
-  transform: translate(-50%, -50%) scale(0);
-}
-
-.theme-veil[data-phase="cover"] .theme-veil-ink {
-  animation: theme-cover 240ms cubic-bezier(.55, .08, .28, 1) both;
-}
-
-.theme-veil[data-phase="reveal"] {
-  background: var(--theme-veil-color);
-  animation: theme-reveal 340ms cubic-bezier(.18, .68, .33, 1) both;
-}
-
-@keyframes theme-cover {
-  to { transform: translate(-50%, -50%) scale(1); }
-}
-
-@keyframes theme-reveal {
-  to { opacity: 0; }
+:root[data-theme-reveal]::view-transition-new(root) {
+  z-index: 1;
+  clip-path: circle(0 at 50% 50%);
 }

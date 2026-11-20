@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
+import { animateInkReveal } from './inkReveal';
 
 export type Theme = 'light' | 'dark';
 type ThemeContextValue = { theme: Theme; toggleTheme: (origin?: { x: number; y: number }) => void };
@@ -8,7 +9,7 @@ const STORAGE_KEY = 'yk-portfolio-theme';
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
-  const veil = useRef<HTMLDivElement>(null);
+  const transitionInProgress = useRef(false);
   const applyTheme = useCallback((next: Theme) => {
     document.documentElement.dataset.theme = next;
     document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute('content', next === 'dark' ? '#0B1511' : '#F4F3EF');
@@ -17,40 +18,30 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const toggleTheme = useCallback((origin?: { x: number; y: number }) => {
-    const layer = veil.current;
-    if (layer?.dataset.phase) return;
+    if (transitionInProgress.current) return;
     const next = theme === 'dark' ? 'light' : 'dark';
-    if (!layer || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (!document.startViewTransition || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       applyTheme(next);
       return;
     }
 
-    layer.style.setProperty('--theme-origin-x', `${origin?.x ?? window.innerWidth / 2}px`);
-    layer.style.setProperty('--theme-origin-y', `${origin?.y ?? window.innerHeight / 2}px`);
-    layer.dataset.target = next;
-    layer.dataset.phase = 'cover';
+    const root = document.documentElement;
+    const center = origin ?? { x: root.clientWidth / 2, y: root.clientHeight / 2 };
+    transitionInProgress.current = true;
+    root.setAttribute('data-theme-reveal', '');
+
+    const transition = document.startViewTransition(() => flushSync(() => applyTheme(next)));
+    void transition.ready.then(() => animateInkReveal(root, center)).catch(() => transition.skipTransition());
+    void transition.finished.then(cleanup, cleanup);
+
+    function cleanup() {
+      root.removeAttribute('data-theme-reveal');
+      transitionInProgress.current = false;
+    }
   }, [applyTheme, theme]);
 
-  const finishPhase = () => {
-    const layer = veil.current;
-    if (layer?.dataset.phase === 'cover') {
-      const next = layer.dataset.target === 'dark' ? 'dark' : 'light';
-      // Commit both the palette and the canvas mode while the screen is covered.
-      flushSync(() => applyTheme(next));
-      layer.dataset.phase = 'reveal';
-    } else if (layer) {
-      delete layer.dataset.phase;
-      delete layer.dataset.target;
-    }
-  };
-
   const value = useMemo(() => ({ theme, toggleTheme }), [theme, toggleTheme]);
-  return <ThemeContext.Provider value={value}>
-    {children}
-    <div ref={veil} className="theme-veil" aria-hidden="true" onAnimationEnd={finishPhase}>
-      <div className="theme-veil-ink" />
-    </div>
-  </ThemeContext.Provider>;
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme() {
